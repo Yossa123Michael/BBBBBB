@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@media print {
+  /* Sembunyikan seluruh elemen web saat mencetak */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Tampilkan hanya area struk thermal */
+  #thermal-receipt, #thermal-receipt * {
+    visibility: visible;
+  }
+
+  #thermal-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 58mm;
+    margin: 0;
+    padding: 3mm;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  @page {
+    size: auto;
+    margin: 0mm;
+  }
+}
+
+/* Hilangkan seluruh scrollbar bawaan browser agar tampilan bersih seperti aplikasi native */
+html,
+body,
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+body {
+  margin: 0;
+  background-color: #09090b;
+  color: #f4f4f5;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  user-select: none;
+}
