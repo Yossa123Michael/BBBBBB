@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Scissors, ShoppingBag, User, Ticket, X, Check, Pencil, RefreshCw } from 'lucide-react';
 
-import { API_BASE as ROOT_API_BASE } from '../config/api';
-const API_BASE = `${ROOT_API_BASE}/master`;
+const API_BASE = `${import.meta.env.VITE_API_URL || `http://${window.location.hostname}:5000/api/v1`}/master`;
 
 interface MasterDataModalProps {
   isOpen: boolean;
@@ -145,7 +144,7 @@ export default function MasterDataModal({ isOpen, onClose, onUpdated }: MasterDa
 
   const fetchVouchers = async () => {
   try {
-    const res = await fetch(`http://${window.location.hostname}:5000/api/v1/master/vouchers`);
+    const res = await fetch(`${API_BASE}/vouchers`);
     const data = await res.json();
     if (data.success) setVouchersList(data.data);
   } catch (err) {

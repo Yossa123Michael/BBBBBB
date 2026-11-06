@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Calendar, Clock, X, Check, Trash2, RefreshCw, AlertCircle } from 'lucide-react';
 
-import { API_BASE as ROOT_API_BASE } from '../config/api';
-const API_BASE = `${ROOT_API_BASE}/roster`;
+const API_BASE = `${import.meta.env.VITE_API_URL || `http://${window.location.hostname}:5000/api/v1`}/roster`;
 
 interface Props {
   isOpen: boolean;

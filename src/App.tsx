@@ -18,7 +18,7 @@ import ExportReportModal from './components/ExportReportModal';
 import BarberRosterModal from './components/BarberRosterModal';
 import { DiscountSection, type DiscountMeta } from './components/PosCheckout';
 
-import { API_BASE } from './config/api';
+const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:5000/api/v1`;
 
 interface ServiceItem {
   id: string;

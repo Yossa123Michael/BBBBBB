@@ -1,2 +1,2 @@
 // Otomatis mengikuti IP perangkat yang sedang membuka (localhost jika di laptop, IP LAN jika di HP)
-export const API_BASE = `http://${window.location.hostname}:5000/api/v1`;
+export const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:5000/api/v1`;

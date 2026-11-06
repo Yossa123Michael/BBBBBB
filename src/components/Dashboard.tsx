@@ -4,7 +4,7 @@ import {
   RefreshCw, Layers, ArrowUpRight, PieChart, Download, FileSpreadsheet, AlertCircle, Ticket, Database, Trash2
 } from 'lucide-react';
 
-import { API_BASE } from '../config/api';
+const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:5000/api/v1`;
 
 interface ExpenseCategoryItem {
   category: string;

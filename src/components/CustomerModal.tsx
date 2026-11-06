@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, UserPlus, X, Phone, Award, FileText, Check } from 'lucide-react';
-import { API_BASE } from '../config/api';
+const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:5000/api/v1`;
 
 export interface CustomerData {
   id: string;
