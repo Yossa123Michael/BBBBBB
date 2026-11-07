@@ -36,12 +36,12 @@ interface TimeSlot {
 
 interface Props {
   onBack?: () => void;
-  currentUser?: any;
+  customerUser?: any;
   onLogout?: () => void;
   onOpenAuth?: (mode: 'LOGIN' | 'REGISTER') => void;
 }
 
-export default function PublicBooking({ onBack, currentUser, onLogout, onOpenAuth }: Props) {
+export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAuth }: Props) {
   // State Katalog & Seleksi
   const [services, setServices] = useState<Service[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
@@ -54,14 +54,24 @@ export default function PublicBooking({ onBack, currentUser, onLogout, onOpenAut
   const [selectedSlot, setSelectedSlot] = useState<string>('');
   const [barberOffNotice, setBarberOffNotice] = useState<string | null>(null);
 
-  // State Formulir Pelanggan (Otomatis terisi jika login via Google/Facebook/No HP/ID)
+  // State Formulir Pelanggan (Otomatis terisi jika customerUser tersedia)
   const [customerName, setCustomerName] = useState(
-    currentUser?.full_name || currentUser?.name || ''
+    customerUser?.name || customerUser?.full_name || ''
   );
-  const [customerPhone, setCustomerPhone] = useState(currentUser?.phone || '');
+  const [customerPhone, setCustomerPhone] = useState(
+    customerUser?.phone || ''
+  );
   const [haircutNotes, setHaircutNotes] = useState(
-    currentUser?.haircut_notes || ''
+    customerUser?.haircut_notes || ''
   );
+
+  useEffect(() => {
+    if (customerUser) {
+      setCustomerName(customerUser.name || customerUser.full_name || '');
+      setCustomerPhone(customerUser.phone || '');
+      setHaircutNotes(customerUser.haircut_notes || '');
+    }
+  }, [customerUser]);
 
   // State Status & Loading
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
@@ -342,7 +352,7 @@ export default function PublicBooking({ onBack, currentUser, onLogout, onOpenAut
             <button
               onClick={() => {
                 setBookingSuccessData(null);
-                if (!currentUser) {
+                if (!customerUser) {
                   setCustomerName('');
                   setCustomerPhone('');
                   setHaircutNotes('');
@@ -372,44 +382,61 @@ export default function PublicBooking({ onBack, currentUser, onLogout, onOpenAut
   return (
     <div className="flex-1 min-h-[100dvh] bg-zinc-950 text-zinc-100 flex flex-col justify-between overflow-y-auto no-scrollbar select-none">
       {/* Top Navbar */}
-      <header className="p-4 bg-zinc-900/80 border-b border-zinc-800 sticky top-0 z-20 backdrop-blur-md flex justify-between items-center">
+      <header className="p-4 bg-zinc-900/80 border-b border-zinc-800 sticky top-0 z-20 backdrop-blur-md flex flex-wrap justify-between items-center gap-2">
         <div className="flex items-center gap-2">
           <span className="font-black text-xs sm:text-sm tracking-wider text-gold-400 flex items-center gap-1.5">
             💈 PORTAL MEMBER & RESERVASI
           </span>
         </div>
 
-        <div className="flex items-center gap-4">
-          <span className="text-[10px] text-zinc-400 font-mono hidden sm:inline">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+          <span className="text-[10px] text-zinc-400 font-mono hidden md:inline">
             Cabang Makassar
           </span>
-          {!currentUser && onOpenAuth && (
-            <div className="flex items-center gap-4">
-              <button
-                type="button"
-                onClick={() => onOpenAuth('REGISTER')}
-                className="text-xs sm:text-sm font-bold text-zinc-400 hover:text-white transition-colors"
-              >
-                Daftar
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpenAuth('LOGIN')}
-                className="bg-white hover:bg-zinc-200 text-black font-bold text-xs sm:text-sm px-5 py-1.5 rounded-full transition-all active:scale-95"
-              >
-                Masuk
-              </button>
+
+          {customerUser ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-800/90 border border-zinc-700 rounded-xl text-xs font-bold text-zinc-100">
+                <User className="w-3.5 h-3.5 text-gold-400" />
+                <span>{customerUser.name || customerUser.full_name}</span>
+              </div>
+              <div className="flex items-center gap-1 px-2.5 py-1 bg-gold-500/10 border border-gold-500/30 rounded-xl text-xs font-mono font-bold text-gold-400">
+                <Award className="w-3.5 h-3.5 text-gold-400" />
+                <span>
+                  Poin Member: {Number(customerUser.loyalty_points || 0)} Pts
+                </span>
+              </div>
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-red-400 border border-zinc-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                  title="Logout"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Logout</span>
+                </button>
+              )}
             </div>
-          )}
-          {onLogout && (
-            <button
-              onClick={onLogout}
-              className="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-red-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
-              title="Keluar Akun"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Keluar</span>
-            </button>
+          ) : (
+            onOpenAuth && (
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => onOpenAuth('REGISTER')}
+                  className="text-xs sm:text-sm font-bold text-zinc-400 hover:text-white transition-colors"
+                >
+                  Daftar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenAuth('LOGIN')}
+                  className="bg-white hover:bg-zinc-200 text-black font-bold text-xs sm:text-sm px-5 py-1.5 rounded-full transition-all active:scale-95"
+                >
+                  Masuk
+                </button>
+              </div>
+            )
           )}
         </div>
       </header>
@@ -417,29 +444,29 @@ export default function PublicBooking({ onBack, currentUser, onLogout, onOpenAut
       {/* Konten Form */}
       <main className="p-4 sm:p-6 max-w-xl mx-auto w-full space-y-5">
         {/* Kartu Profil Member (Muncul jika Pelanggan Login via Google/Facebook/No HP/ID) */}
-        {currentUser && (
+        {customerUser && (
           <div className="p-4 bg-zinc-900/90 border border-gold-500/30 rounded-2xl flex items-center justify-between gap-3 shadow-lg">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-2xl bg-gold-500/20 border border-gold-500/40 text-gold-400 flex items-center justify-center font-black text-sm shrink-0">
-                {(currentUser.full_name || currentUser.name || 'MB')
+                {(customerUser.name || customerUser.full_name || 'MB')
                   .slice(0, 2)
                   .toUpperCase()}
               </div>
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <h3 className="text-xs sm:text-sm font-black text-zinc-100">
-                    {currentUser.full_name || currentUser.name}
+                    {customerUser.name || customerUser.full_name}
                   </h3>
                   <span className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 text-gold-400 font-mono font-bold uppercase">
-                    {currentUser.authProvider === 'GOOGLE'
+                    {customerUser.authProvider === 'GOOGLE'
                       ? 'Google Account'
-                      : currentUser.authProvider === 'FACEBOOK'
+                      : customerUser.authProvider === 'FACEBOOK'
                       ? 'Facebook Account'
                       : 'Member VIP'}
                   </span>
                 </div>
                 <p className="text-[11px] text-zinc-400 font-mono">
-                  {currentUser.phone || currentUser.email}
+                  {customerUser.phone || customerUser.email}
                 </p>
               </div>
             </div>
@@ -449,7 +476,7 @@ export default function PublicBooking({ onBack, currentUser, onLogout, onOpenAut
                 <Award className="w-3 h-3 text-gold-400" /> Poin Member
               </div>
               <div className="text-sm font-black text-gold-400 font-mono">
-                {Number(currentUser.loyalty_points || 0)} Pts
+                {Number(customerUser.loyalty_points || 0)} Pts
               </div>
             </div>
           </div>

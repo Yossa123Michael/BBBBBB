@@ -471,7 +471,12 @@ export default function App() {
   const [showRosterModal, setShowRosterModal] = useState(false);
   const [authInitialMode, setAuthInitialMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
 
-  // 1. Jika dibuka sebagai Portal Pelanggan (Customer), tampilkan khusus halaman Booking
+  // 1. Jika yang login adalah Pelanggan (Customer), langsung render PublicBooking
+  if (currentUser?.role === 'CUSTOMER') {
+    return <PublicBooking customerUser={currentUser} onLogout={handleLogout} />;
+  }
+
+  // 2. Jika dibuka sebagai Portal Pelanggan (Mode Tamu), tampilkan khusus halaman Booking
   if (isCustomerPortal) {
     return (
       <PublicBooking
@@ -488,7 +493,7 @@ export default function App() {
     );
   }
 
-  // 2. Guard Layar Login (Gaya Spotify: Daftar | Masuk + Auto-Detect Role)
+  // 3. Guard Layar Login (Gaya Spotify: Daftar | Masuk + Auto-Detect Role)
   if (!currentUser) {
     return (
       <LoginScreen
@@ -508,11 +513,6 @@ export default function App() {
   // Jika yang login adalah Kapster/Barber, alihkan langsung ke portal kapster
   if (currentUser.role === 'BARBER') {
     return <BarberPortal currentUser={currentUser} onLogout={handleLogout} />;
-  }
-
-  // Jika yang login adalah Pelanggan (Customer), alihkan ke Portal Member & Booking Online
-  if (currentUser.role === 'CUSTOMER') {
-    return <PublicBooking currentUser={currentUser} onLogout={handleLogout} />;
   }
 
   return (
