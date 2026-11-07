@@ -11,15 +11,19 @@ declare global {
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:5000/api/v1`;
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 interface LoginScreenProps {
+  initialMode?: 'LOGIN' | 'REGISTER';
   onLoginSuccess: (user: any) => void;
   onOpenCustomerPortal?: () => void;
 }
 
-export default function LoginScreen({ onLoginSuccess, onOpenCustomerPortal }: LoginScreenProps) {
-  const [mode, setMode] = useState<'LOGIN' | 'REGISTER' | 'PHONE'>('LOGIN');
+export default function LoginScreen({
+  initialMode = 'LOGIN',
+  onLoginSuccess,
+  onOpenCustomerPortal,
+}: LoginScreenProps) {
+  const [mode, setMode] = useState<'LOGIN' | 'REGISTER' | 'PHONE'>(initialMode);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -30,6 +34,10 @@ export default function LoginScreen({ onLoginSuccess, onOpenCustomerPortal }: Lo
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    setMode(initialMode);
+  }, [initialMode]);
 
   // Muat script Google Identity Services (GIS) untuk tombol Continue with Google
   useEffect(() => {
@@ -44,17 +52,6 @@ export default function LoginScreen({ onLoginSuccess, onOpenCustomerPortal }: Lo
     }
   }, []);
 
-  // Fungsi decode JWT dari Google Credential
-  const decodeJwtPayload = (token: string) => {
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      return JSON.parse(window.atob(base64));
-    } catch {
-      return null;
-    }
-  };
-
   // Handler Login / Register Manual (Otomatis cek Staf lalu Pelanggan)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,14 +61,15 @@ export default function LoginScreen({ onLoginSuccess, onOpenCustomerPortal }: Lo
     try {
       // 1. Jika Mode REGISTER Pelanggan Baru
       if (mode === 'REGISTER') {
+        const cleanEmail = identifier.trim();
         const res = await fetch(`${API_BASE}/auth/customer/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            fullName,
-            email: identifier,
-            username: username || identifier.split('@')[0],
-            phone,
+            fullName: fullName.trim(),
+            email: cleanEmail,
+            username: (username || cleanEmail.split('@')[0]).trim(),
+            phone: phone.trim() || undefined,
             password,
           }),
         });
@@ -86,7 +84,7 @@ export default function LoginScreen({ onLoginSuccess, onOpenCustomerPortal }: Lo
       }
 
       // 2. Jika Mode LOGIN atau PHONE: Cek dulu apakah ini akun Staf (Owner/Kasir)
-      const targetId = mode === 'PHONE' ? phone : identifier;
+      const targetId = (mode === 'PHONE' ? phone : identifier).trim();
       if (targetId.includes('@barber.com')) {
         const staffRes = await fetch(`${API_BASE}/auth/login`, {
           method: 'POST',
@@ -122,65 +120,89 @@ export default function LoginScreen({ onLoginSuccess, onOpenCustomerPortal }: Lo
     }
   };
 
-  // Handler Continue with Google
-  const handleGoogleLogin = async () => {
+  // Handler Continue with Google (Membuka Jendela Resmi "Pilih Akun" Google OAuth2)
+  const handleGoogleLogin = () => {
     setErrorMsg('');
 
-    // Jika VITE_GOOGLE_CLIENT_ID sudah dipasang di Vercel/env, buka popup resmi Google
-    if (GOOGLE_CLIENT_ID && window.google?.accounts?.id) {
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: async (response: any) => {
-          const payload = decodeJwtPayload(response.credential);
-          if (payload?.email) {
-            await loginGoogleToBackend(payload.email, payload.name, payload.sub);
-          }
-        },
-      });
-      window.google.accounts.id.prompt();
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      setErrorMsg('VITE_GOOGLE_CLIENT_ID belum diatur di Environment Variables Vercel');
       return;
     }
 
-    // Fallback interaktif jika VITE_GOOGLE_CLIENT_ID belum disetel
-    const inputEmail = prompt('Masukkan alamat Gmail Anda untuk melanjutkan dengan Google:', 'pelanggan@gmail.com');
-    if (!inputEmail) return;
-    const defaultName = inputEmail.split('@')[0].replace(/[._]/g, ' ');
-    const inputName = prompt('Nama Lengkap Anda:', defaultName) || defaultName;
-    await loginGoogleToBackend(inputEmail, inputName, `google-${Date.now()}`);
-  };
-
-  const loginGoogleToBackend = async (email: string, name: string, googleId: string) => {
-    setIsLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/auth/customer/google`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, googleId }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        localStorage.setItem('barber_auth_user', JSON.stringify(result.data));
-        onLoginSuccess(result.data);
-      } else {
-        setErrorMsg(result.message || 'Gagal login dengan Google');
-      }
-    } catch {
-      setErrorMsg('Gagal menghubungi server untuk autentikasi Google');
-    } finally {
-      setIsLoading(false);
+    if (!window.google?.accounts?.oauth2) {
+      setErrorMsg('Layanan Google OAuth2 sedang dimuat, silakan klik sekali lagi.');
+      return;
     }
+
+    const tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'openid email profile',
+      prompt: 'select_account',
+      callback: async (tokenResponse: any) => {
+        if (tokenResponse?.error) {
+          setErrorMsg('Login Google dibatalkan atau gagal.');
+          return;
+        }
+
+        if (tokenResponse?.access_token) {
+          setIsLoading(true);
+          try {
+            let googleProfile: any = {};
+            try {
+              const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: {
+                  Authorization: `Bearer ${tokenResponse.access_token}`,
+                },
+              });
+              if (userInfoRes.ok) {
+                googleProfile = await userInfoRes.json();
+              }
+            } catch {
+              // Backend juga memverifikasi accessToken secara langsung
+            }
+
+            const res = await fetch(`${API_BASE}/auth/customer/google`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                accessToken: tokenResponse.access_token,
+                email: googleProfile.email,
+                name: googleProfile.name,
+                googleId: googleProfile.sub,
+                picture: googleProfile.picture,
+              }),
+            });
+
+            const result = await res.json();
+            if (result.success) {
+              localStorage.setItem('barber_auth_user', JSON.stringify(result.data));
+              onLoginSuccess(result.data);
+            } else {
+              setErrorMsg(result.message || 'Gagal login dengan Google');
+            }
+          } catch {
+            setErrorMsg('Gagal menghubungi server untuk autentikasi Google');
+          } finally {
+            setIsLoading(false);
+          }
+        }
+      },
+    });
+
+    tokenClient.requestAccessToken({ prompt: 'select_account' });
   };
 
   return (
     <div className="min-h-screen w-screen bg-[#121212] flex flex-col items-center justify-center p-4 text-zinc-100 select-none overflow-y-auto">
       <div className="w-full max-w-[360px] py-6 space-y-6">
-        {/* Logo Bulat Putih & Judul (Sesuai Referensi) */}
+        {/* Logo Bulat Putih & Judul */}
         <div className="flex flex-col items-center text-center space-y-4">
           <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-lg">
             <Scissors className="w-6 h-6 text-zinc-950 -rotate-45" />
           </div>
           <h1 className="text-3xl font-black tracking-tight text-white">
-            {mode === 'REGISTER' ? 'Create account' : 'Welcome back'}
+            {mode === 'REGISTER' ? 'Sign up for Barbershop' : 'Welcome back'}
           </h1>
         </div>
 
@@ -206,10 +228,11 @@ export default function LoginScreen({ onLoginSuccess, onOpenCustomerPortal }: Lo
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-white block">Nomor WhatsApp</label>
+                <label className="text-xs font-bold text-white block">
+                  Nomor WhatsApp <span className="text-zinc-400 font-normal">(Opsional)</span>
+                </label>
                 <input
                   type="tel"
-                  required
                   placeholder="Contoh: 081234567890"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
@@ -233,11 +256,13 @@ export default function LoginScreen({ onLoginSuccess, onOpenCustomerPortal }: Lo
             </div>
           ) : (
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-white block">Email or username</label>
+              <label className="text-xs font-bold text-white block">
+                {mode === 'REGISTER' ? 'Email' : 'Email or username'}
+              </label>
               <input
-                type="text"
+                type={mode === 'REGISTER' ? 'email' : 'text'}
                 required
-                placeholder="Email atau username (ID)"
+                placeholder={mode === 'REGISTER' ? 'Contoh: gemini@gmail.com' : 'Email atau username (ID)'}
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 className="w-full bg-[#121212] border border-zinc-600 hover:border-white focus:border-white rounded-md py-3 px-3.5 text-sm text-white placeholder-zinc-500 focus:outline-none transition-colors"
@@ -288,7 +313,10 @@ export default function LoginScreen({ onLoginSuccess, onOpenCustomerPortal }: Lo
         <div className="space-y-2.5">
           <button
             type="button"
-            onClick={() => setMode(mode === 'PHONE' ? 'LOGIN' : 'PHONE')}
+            onClick={() => {
+              setMode(mode === 'PHONE' ? 'LOGIN' : 'PHONE');
+              setErrorMsg('');
+            }}
             className="w-full py-3 px-5 rounded-full border border-zinc-600 hover:border-white bg-transparent text-white text-xs font-bold flex items-center justify-center relative transition-all"
           >
             <Smartphone className="w-4 h-4 absolute left-5 text-zinc-300" />
