@@ -251,39 +251,31 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     fetchSlots();
   }, [selectedBarberId, selectedDate, selectedServiceId, services]);
 
-  // 3. Countdown Timer 10 Menit untuk Pesanan PENDING_PAYMENT
+  // 3. Countdown Timer 10 Menit (Pasti Berjalan Mundur Setiap Detik)
   useEffect(() => {
-    if (!pendingBooking?.expiresAt) return;
+    if (!pendingBooking) return;
 
-    const updateTimer = () => {
-      const diffMs = new Date(pendingBooking.expiresAt).getTime() - Date.now();
-      const secs = Math.max(0, Math.floor(diffMs / 1000));
-      setRemainingSeconds(secs);
+    const interval = setInterval(() => {
+      setRemainingSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
 
-      if (secs <= 0) {
-        // Otomatis batalkan/hanguskan di server & buka kembali slot
-        fetch(`${API_BASE}/bookings/${pendingBooking.bookingId}/cancel`, {
-          method: 'POST',
-        }).finally(() => {
-          setPendingBooking(null);
-          setExpiredNotice(
-            'Batas waktu pembayaran 10 menit telah habis. Pesanan Anda otomatis hangus dan slot jam telah dibuka kembali.'
-          );
-          fetchSlots();
-        });
-      }
-    };
-
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
   }, [pendingBooking]);
 
-  const formatCountdown = (totalSecs: number) => {
-    const mins = Math.floor(totalSecs / 60);
-    const secs = totalSecs % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  useEffect(() => {
+    if (!pendingBooking || remainingSeconds > 0) return;
+
+    const targetId = pendingBooking.bookingId || pendingBooking.bookingCode;
+    fetch(`${API_BASE}/bookings/${targetId}/cancel`, {
+      method: 'POST',
+    }).finally(() => {
+      setPendingBooking(null);
+      setExpiredNotice(
+        'Batas waktu pembayaran 10 menit telah habis. Pesanan Anda otomatis hangus dan slot jam telah dibuka kembali.'
+      );
+      fetchSlots();
+    });
+  }, [remainingSeconds, pendingBooking]);
 
   // 4. Proses Submit Reservasi (Wajib Login terlebih dahulu)
   const handleSubmitBooking = async (e: React.FormEvent) => {
@@ -344,11 +336,17 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
 
       const result = await res.json();
       if (result.success) {
+        const selectedSrv = services.find((s) => s.id === selectedServiceId);
+        const selectedBrb = barbers.find((b) => b.id === selectedBarberId);
+        setRemainingSeconds(600);
         setPendingBooking({
           ...result.data,
+          bookingId: result.data?.bookingId || result.data?.id || result.data?.bookingCode,
+          price: Number(result.data?.price || selectedSrv?.base_price || 0),
+          expiresAt: result.data?.expiresAt || new Date(Date.now() + 10 * 60 * 1000).toISOString(),
           customerName,
-          serviceName: services.find((s) => s.id === selectedServiceId)?.name,
-          barberName: barbers.find((b) => b.id === selectedBarberId)?.nickname,
+          serviceName: result.data?.serviceName || selectedSrv?.name,
+          barberName: selectedBrb?.nickname,
         });
       } else {
         alert('Gagal reservasi: ' + result.message);
