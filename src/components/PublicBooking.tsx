@@ -15,6 +15,9 @@ import {
   QrCode,
   XCircle,
   Lock,
+  Gift,
+  Minus,
+  Plus,
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:5000/api/v1`;
@@ -47,7 +50,7 @@ interface Props {
 }
 
 export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAuth }: Props) {
-  // State Katalog & Seleksi
+  // 1. SEMUA HOOK WAJIB BERADA DI ATAS SEBELUM CONDITIONAL RETURN (Mencegah Black Screen React Error #310)
   const [services, setServices] = useState<Service[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
@@ -59,70 +62,64 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
   const [selectedSlot, setSelectedSlot] = useState<string>('');
   const [barberOffNotice, setBarberOffNotice] = useState<string | null>(null);
 
-  // State Profil & Poin Member (Real-time Sync dengan Database)
-  const [customerName, setCustomerName] = useState(
-    customerUser?.name || customerUser?.full_name || ''
+  const [customerName, setCustomerName] = useState<string>(
+    String(customerUser?.name || customerUser?.full_name || '')
   );
-  const [customerPhone, setCustomerPhone] = useState(
-    customerUser?.phone || ''
+  const [customerPhone, setCustomerPhone] = useState<string>(
+    String(customerUser?.phone || '')
   );
-  const [haircutNotes, setHaircutNotes] = useState(
-    customerUser?.haircut_notes || ''
+  const [haircutNotes, setHaircutNotes] = useState<string>(
+    String(customerUser?.haircut_notes || '')
   );
   const [loyaltyPoints, setLoyaltyPoints] = useState<number>(
     Number(customerUser?.loyalty_points || 0)
   );
 
-  // State Status, Pembayaran 10 Menit, & Loading
-  const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
-  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
+  // State Pembayaran 10 Menit & Tukar Poin
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState<boolean>(true);
+  const [isLoadingSlots, setIsLoadingSlots] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isConfirmingPayment, setIsConfirmingPayment] = useState<boolean>(false);
   const [pendingBooking, setPendingBooking] = useState<any>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(600);
   const [paymentMethod, setPaymentMethod] = useState<'QRIS' | 'VA_BCA' | 'EWALLET'>('QRIS');
+  const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
   const [expiredNotice, setExpiredNotice] = useState<string | null>(null);
   const [bookingSuccessData, setBookingSuccessData] = useState<any>(null);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState<string>('');
 
-  // Ref untuk Roll Kotak Jam
   const slotRollRef = useRef<HTMLDivElement | null>(null);
-  const isDraggingRef = useRef(false);
-  const dragStartYRef = useRef(0);
-  const dragScrollTopRef = useRef(0);
 
-  // Sinkronisasi Poin & Profil Terbaru dari Server (Mengatasi Poin 0 Pts di POV Customer)
+  // Sinkronisasi Poin & Profil Terbaru dari Server
+  const syncMemberProfile = async () => {
+    if (!customerUser?.id) return;
+    try {
+      const res = await fetch(`${API_BASE}/auth/customer/profile?id=${customerUser.id}`);
+      const json = await res.json();
+      if (json.success && json.data) {
+        setLoyaltyPoints(Number(json.data.loyalty_points || 0));
+        if (json.data.name) setCustomerName(String(json.data.name));
+        if (json.data.phone) setCustomerPhone(String(json.data.phone));
+        if (json.data.haircut_notes) setHaircutNotes(String(json.data.haircut_notes));
+        localStorage.setItem(
+          'barber_auth_user',
+          JSON.stringify({ ...customerUser, ...json.data })
+        );
+      }
+    } catch (err) {
+      console.error('Sync profile error:', err);
+    }
+  };
+
   useEffect(() => {
     if (!customerUser) {
       setLoyaltyPoints(0);
       return;
     }
-
-    setCustomerName(customerUser.name || customerUser.full_name || '');
-    if (customerUser.phone) setCustomerPhone(customerUser.phone);
-    if (customerUser.haircut_notes) setHaircutNotes(customerUser.haircut_notes);
+    setCustomerName(String(customerUser.name || customerUser.full_name || ''));
+    if (customerUser.phone) setCustomerPhone(String(customerUser.phone));
+    if (customerUser.haircut_notes) setHaircutNotes(String(customerUser.haircut_notes));
     setLoyaltyPoints(Number(customerUser.loyalty_points || 0));
-
-    if (!customerUser.id) return;
-
-    const syncMemberProfile = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/auth/customer/profile?id=${customerUser.id}`);
-        const json = await res.json();
-        if (json.success && json.data) {
-          setLoyaltyPoints(Number(json.data.loyalty_points || 0));
-          if (json.data.name) setCustomerName(json.data.name);
-          if (json.data.phone) setCustomerPhone(json.data.phone);
-          if (json.data.haircut_notes) setHaircutNotes(json.data.haircut_notes);
-          localStorage.setItem(
-            'barber_auth_user',
-            JSON.stringify({ ...customerUser, ...json.data })
-          );
-        }
-      } catch (err) {
-        console.error('Sync profile error:', err);
-      }
-    };
 
     syncMemberProfile();
     window.addEventListener('focus', syncMemberProfile);
@@ -135,35 +132,16 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     if (savedDraft) {
       try {
         const parsed = JSON.parse(savedDraft);
-        if (parsed.serviceId) setSelectedServiceId(parsed.serviceId);
-        if (parsed.barberId) setSelectedBarberId(parsed.barberId);
-        if (parsed.date) setSelectedDate(parsed.date);
-        if (parsed.slot) setSelectedSlot(parsed.slot);
+        if (parsed.serviceId) setSelectedServiceId(String(parsed.serviceId));
+        if (parsed.barberId) setSelectedBarberId(String(parsed.barberId));
+        if (parsed.date) setSelectedDate(String(parsed.date));
+        if (parsed.slot) setSelectedSlot(String(parsed.slot));
         sessionStorage.removeItem('barber_booking_draft');
       } catch {}
     }
   }, [customerUser]);
 
-  useEffect(() => {
-    const el = slotRollRef.current;
-    if (!el) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      el.scrollBy({
-        top: e.deltaY * 0.65,
-        behavior: 'smooth',
-      });
-    };
-
-    el.addEventListener('wheel', handleWheel, { passive: false });
-    return () => {
-      el.removeEventListener('wheel', handleWheel);
-    };
-  }, [availableSlots, isLoadingSlots, barberOffNotice]);
-
-  // 1. Ambil Katalog Layanan & Barber
+  // Ambil Katalog Layanan & Barber
   useEffect(() => {
     let isMounted = true;
     setIsLoadingCatalog(true);
@@ -200,7 +178,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     };
   }, []);
 
-  // 2. Fungsi Muat Ulang Slot Jam Ketersediaan
+  // Fungsi Muat Ulang Slot Jam Ketersediaan
   const fetchSlots = async () => {
     if (!selectedBarberId || !selectedDate || !selectedServiceId) return;
     setIsLoadingSlots(true);
@@ -213,7 +191,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
       const rosterData = await rosterRes.json();
 
       if (rosterData.success && !rosterData.isAvailable) {
-        setBarberOffNotice(rosterData.reason || 'Kapster sedang tidak bertugas.');
+        setBarberOffNotice(String(rosterData.reason || 'Kapster sedang tidak bertugas.'));
         setAvailableSlots([]);
         setIsLoadingSlots(false);
         return;
@@ -234,7 +212,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
         );
         if (!stillAvailable) {
           const firstAvailable = slotData.data.find((s: TimeSlot) => s.available);
-          setSelectedSlot(firstAvailable ? firstAvailable.startTime : '');
+          setSelectedSlot(firstAvailable ? String(firstAvailable.startTime) : '');
         }
       } else {
         setAvailableSlots([]);
@@ -251,7 +229,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     fetchSlots();
   }, [selectedBarberId, selectedDate, selectedServiceId, services]);
 
-  // 3. Countdown Timer 10 Menit (Pasti Berjalan Mundur Setiap Detik)
+  // Countdown Timer 10 Menit (Berjalan Mundur Setiap Detik Tanpa Freeze)
   useEffect(() => {
     if (!pendingBooking) return;
 
@@ -262,27 +240,37 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     return () => clearInterval(interval);
   }, [pendingBooking]);
 
+  // Otomatis Hanguskan Pesanan Saat Timer Mencapai 00:00
   useEffect(() => {
     if (!pendingBooking || remainingSeconds > 0) return;
 
     const targetId = pendingBooking.bookingId || pendingBooking.bookingCode;
     fetch(`${API_BASE}/bookings/${targetId}/cancel`, {
       method: 'POST',
-    }).finally(() => {
-      setPendingBooking(null);
-      setExpiredNotice(
-        'Batas waktu pembayaran 10 menit telah habis. Pesanan Anda otomatis hangus dan slot jam telah dibuka kembali.'
-      );
-      fetchSlots();
-    });
+    })
+      .catch(() => {})
+      .finally(() => {
+        setPendingBooking(null);
+        setPointsToRedeem(0);
+        setExpiredNotice(
+          'Batas waktu pembayaran 10 menit telah habis. Pesanan Anda otomatis hangus dan slot jam telah dibuka kembali.'
+        );
+        fetchSlots();
+      });
   }, [remainingSeconds, pendingBooking]);
 
-  // 4. Proses Submit Reservasi (Wajib Login terlebih dahulu)
+  const formatCountdown = (totalSecs: number) => {
+    const safeSecs = Math.max(0, Number(totalSecs) || 0);
+    const mins = Math.floor(safeSecs / 60);
+    const secs = safeSecs % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Proses Submit Reservasi (Wajib Login)
   const handleSubmitBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     setExpiredNotice(null);
 
-    // Jika belum login, wajibkan login/daftar akun terlebih dahulu!
     if (!customerUser || !customerUser.id) {
       sessionStorage.setItem(
         'barber_booking_draft',
@@ -338,47 +326,77 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
       if (result.success) {
         const selectedSrv = services.find((s) => s.id === selectedServiceId);
         const selectedBrb = barbers.find((b) => b.id === selectedBarberId);
+        const safePrice = Number(result.data?.price || selectedSrv?.base_price || 0);
+
+        setPointsToRedeem(0);
         setRemainingSeconds(600);
         setPendingBooking({
-          ...result.data,
-          bookingId: result.data?.bookingId || result.data?.id || result.data?.bookingCode,
-          price: Number(result.data?.price || selectedSrv?.base_price || 0),
-          expiresAt: result.data?.expiresAt || new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-          customerName,
-          serviceName: result.data?.serviceName || selectedSrv?.name,
-          barberName: selectedBrb?.nickname,
+          bookingId: String(result.data?.bookingId || result.data?.id || result.data?.bookingCode || ''),
+          bookingCode: String(result.data?.bookingCode || 'BRB-ONLINE'),
+          date: String(result.data?.date || selectedDate).slice(0, 10),
+          startTime: String(result.data?.startTime || selectedSlot).slice(0, 5),
+          price: safePrice,
+          customerName: String(customerName),
+          serviceName: String(result.data?.serviceName || selectedSrv?.name || 'Treatment'),
+          barberName: String(selectedBrb?.nickname || 'Kapster'),
         });
       } else {
-        alert('Gagal reservasi: ' + result.message);
+        alert('Gagal reservasi: ' + (result.message || 'Slot tidak tersedia'));
         fetchSlots();
       }
     } catch (err: any) {
-      alert('Terjadi kesalahan: ' + err.message);
+      alert('Terjadi kesalahan koneksi: ' + err.message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // 5. Konfirmasi Pembayaran dalam 10 Menit
+  // Konfirmasi Pembayaran + Tukar Poin
   const handleConfirmPayment = async () => {
-    if (!pendingBooking?.bookingId) return;
+    const targetId = pendingBooking?.bookingId || pendingBooking?.bookingCode;
+    if (!targetId) return;
+
     setIsConfirmingPayment(true);
     try {
-      const res = await fetch(`${API_BASE}/bookings/${pendingBooking.bookingId}/pay`, {
+      const basePrice = Number(pendingBooking.price || 0);
+      const maxPts = Math.min(loyaltyPoints, Math.floor(basePrice / 1000));
+      const validPoints = Math.max(0, Math.min(pointsToRedeem, maxPts));
+      const pointDiscount = validPoints * 1000;
+      const finalPaid = Math.max(0, basePrice - pointDiscount);
+
+      const res = await fetch(`${API_BASE}/bookings/${targetId}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentMethod }),
+        body: JSON.stringify({
+          paymentMethod,
+          pointsRedeemed: validPoints,
+        }),
       });
       const result = await res.json();
+
       if (result.success) {
+        // Update saldo poin lokal secara langsung
+        const newPts =
+          result.data?.remainingPoints !== undefined
+            ? Number(result.data.remainingPoints)
+            : Math.max(0, loyaltyPoints - validPoints);
+        setLoyaltyPoints(newPts);
+        syncMemberProfile();
+
         setBookingSuccessData({
           ...pendingBooking,
           paymentMethod,
+          originalPrice: basePrice,
+          pointsRedeemed: validPoints,
+          discountAmount: pointDiscount,
+          finalPrice: finalPaid,
         });
         setPendingBooking(null);
+        setPointsToRedeem(0);
       } else {
         setPendingBooking(null);
-        setExpiredNotice(result.message || 'Waktu pembayaran habis, pesanan hangus.');
+        setPointsToRedeem(0);
+        setExpiredNotice(String(result.message || 'Waktu pembayaran habis, pesanan hangus.'));
         fetchSlots();
       }
     } catch (err: any) {
@@ -388,15 +406,20 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     }
   };
 
-  // 6. Batalkan Pesanan Sebelum Bayar (Membuka Kembali Slot Jam)
+  // Batalkan Pesanan Sebelum Bayar
   const handleCancelPending = async () => {
-    if (!pendingBooking?.bookingId) return;
-    await fetch(`${API_BASE}/bookings/${pendingBooking.bookingId}/cancel`, {
-      method: 'POST',
-    });
+    const targetId = pendingBooking?.bookingId || pendingBooking?.bookingCode;
+    if (targetId) {
+      await fetch(`${API_BASE}/bookings/${targetId}/cancel`, {
+        method: 'POST',
+      }).catch(() => {});
+    }
     setPendingBooking(null);
+    setPointsToRedeem(0);
     fetchSlots();
   };
+
+  // ==================== CONDITIONAL VIEWS ====================
 
   if (isLoadingCatalog) {
     return (
@@ -419,11 +442,18 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     );
   }
 
-  // LAYAR MENUNGGU PEMBAYARAN (COUNTDOWN MAKSIMAL 10 MENIT)
+  // LAYAR MENUNGGU PEMBAYARAN (COUNTDOWN 10 MENIT + TUKAR POIN MEMBER)
   if (pendingBooking) {
+    const originalPrice = Number(pendingBooking.price || 0);
+    const maxRedeemablePoints = Math.min(loyaltyPoints, Math.floor(originalPrice / 1000));
+    const appliedPoints = Math.max(0, Math.min(pointsToRedeem, maxRedeemablePoints));
+    const pointsDiscountRp = appliedPoints * 1000;
+    const finalBillRp = Math.max(0, originalPrice - pointsDiscountRp);
+
     return (
-      <div className="flex-1 min-h-[100dvh] bg-zinc-950 flex items-center justify-center p-4 text-zinc-100 select-none">
-        <div className="w-full max-w-md bg-zinc-900 border border-gold-500/40 rounded-3xl p-6 space-y-5 shadow-2xl">
+      <div className="flex-1 min-h-[100dvh] bg-zinc-950 flex items-center justify-center p-4 text-zinc-100 select-none overflow-y-auto">
+        <div className="w-full max-w-md bg-zinc-900 border border-gold-500/40 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl my-auto">
+          {/* Header & Sisa Waktu */}
           <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
             <div className="flex items-center gap-2.5">
               <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
@@ -442,34 +472,113 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
             </div>
           </div>
 
-          {/* Detail Ringkasan Booking */}
+          {/* Detail Ringkasan Booking & Potongan Poin */}
           <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-4 font-mono text-xs space-y-2">
             <div className="flex justify-between">
               <span className="text-zinc-500 font-sans">Kode Booking</span>
-              <span className="text-gold-400 font-bold">{pendingBooking.bookingCode}</span>
+              <span className="text-gold-400 font-bold">{String(pendingBooking.bookingCode)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-zinc-500 font-sans">Pelanggan</span>
-              <span className="text-zinc-200">{pendingBooking.customerName}</span>
+              <span className="text-zinc-200">{String(pendingBooking.customerName)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-zinc-500 font-sans">Treatment & Kapster</span>
               <span className="text-zinc-200">
-                {pendingBooking.serviceName} • {pendingBooking.barberName}
+                {String(pendingBooking.serviceName)} • {String(pendingBooking.barberName)}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-zinc-500 font-sans">Jadwal Dikunci</span>
               <span className="text-emerald-400 font-bold">
-                {pendingBooking.date} • {pendingBooking.startTime} WITA
+                {String(pendingBooking.date)} • {String(pendingBooking.startTime)} WITA
               </span>
             </div>
-            <div className="flex justify-between border-t border-zinc-800 pt-2 text-sm">
-              <span className="text-zinc-400 font-sans font-bold">Total Tagihan</span>
-              <span className="text-gold-400 font-black">
-                Rp {Number(pendingBooking.price || 0).toLocaleString('id-ID')}
-              </span>
+
+            <div className="border-t border-zinc-800/80 pt-2 space-y-1.5">
+              <div className="flex justify-between text-zinc-400">
+                <span className="font-sans">Harga Layanan</span>
+                <span>Rp {originalPrice.toLocaleString('id-ID')}</span>
+              </div>
+              {appliedPoints > 0 && (
+                <div className="flex justify-between text-emerald-400">
+                  <span className="font-sans">Tukar Poin ({appliedPoints} Pts)</span>
+                  <span>- Rp {pointsDiscountRp.toLocaleString('id-ID')}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t border-zinc-800 pt-2 text-sm">
+                <span className="text-zinc-200 font-sans font-bold">Total Tagihan</span>
+                <span className="text-gold-400 font-black">
+                  Rp {finalBillRp.toLocaleString('id-ID')}
+                </span>
+              </div>
             </div>
+          </div>
+
+          {/* FITUR TUKAR POIN MEMBER (1 Poin = Rp 1.000) */}
+          <div className="p-3.5 bg-zinc-950 border border-gold-500/30 rounded-2xl space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Gift className="w-4 h-4 text-gold-400" />
+                <div>
+                  <div className="text-xs font-bold text-zinc-100">Tukar Poin Member</div>
+                  <div className="text-[10px] text-zinc-400 font-mono">
+                    Saldo: <span className="text-gold-400 font-bold">{loyaltyPoints} Pts</span> (1 Pts = Rp 1.000)
+                  </div>
+                </div>
+              </div>
+
+              {maxRedeemablePoints > 0 ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPointsToRedeem(appliedPoints === maxRedeemablePoints ? 0 : maxRedeemablePoints)
+                  }
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono transition-all border ${
+                    appliedPoints > 0
+                      ? 'bg-gold-500 text-zinc-950 border-gold-400'
+                      : 'bg-zinc-900 text-gold-400 border-gold-500/40 hover:bg-zinc-800'
+                  }`}
+                >
+                  {appliedPoints === maxRedeemablePoints ? 'Batalkan Poin' : 'Pakai Semua'}
+                </button>
+              ) : (
+                <span className="text-[10px] text-zinc-500 font-mono">Belum ada poin</span>
+              )}
+            </div>
+
+            {maxRedeemablePoints > 0 && (
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-zinc-800/80">
+                <span className="text-[11px] text-zinc-400">Jumlah Poin Ditukar:</span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setPointsToRedeem(Math.max(0, appliedPoints - 1))}
+                    className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-700 hover:border-gold-500 flex items-center justify-center text-zinc-200"
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <input
+                    type="number"
+                    min={0}
+                    max={maxRedeemablePoints}
+                    value={appliedPoints}
+                    onChange={(e) => {
+                      const val = Math.max(0, Math.min(maxRedeemablePoints, Number(e.target.value) || 0));
+                      setPointsToRedeem(val);
+                    }}
+                    className="w-14 bg-zinc-900 border border-zinc-700 rounded-lg py-1 text-center font-mono text-xs font-bold text-gold-400 focus:outline-none focus:border-gold-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPointsToRedeem(Math.min(maxRedeemablePoints, appliedPoints + 1))}
+                    className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-700 hover:border-gold-500 flex items-center justify-center text-zinc-200"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Pilihan Metode Pembayaran */}
@@ -494,10 +603,10 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
               ))}
             </div>
 
-            <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-2xl text-center space-y-2">
-              <QrCode className="w-20 h-20 text-zinc-200 mx-auto" />
+            <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-2xl text-center space-y-1.5">
+              <QrCode className="w-16 h-16 text-zinc-200 mx-auto" />
               <p className="text-[11px] text-zinc-400">
-                Scan QRIS atau selesaikan pembayaran sebelum waktu <b>10 menit</b> habis agar pesanan tidak hangus.
+                Scan QRIS atau selesaikan pembayaran <b>Rp {finalBillRp.toLocaleString('id-ID')}</b> sebelum waktu <b>10 menit</b> habis.
               </p>
             </div>
           </div>
@@ -551,30 +660,42 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
           <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-4 font-mono text-left space-y-2 text-xs">
             <div className="flex justify-between border-b border-zinc-800/80 pb-2">
               <span className="text-zinc-500 font-sans">Kode Booking</span>
-              <span className="text-gold-400 font-bold">{bookingSuccessData.bookingCode}</span>
+              <span className="text-gold-400 font-bold">{String(bookingSuccessData.bookingCode)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-zinc-500 font-sans">Status Bayar</span>
               <span className="text-emerald-400 font-bold">
-                LUNAS ({bookingSuccessData.paymentMethod})
+                LUNAS ({String(bookingSuccessData.paymentMethod)})
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-zinc-500 font-sans">Pelanggan</span>
-              <span className="text-zinc-200">{bookingSuccessData.customerName}</span>
+              <span className="text-zinc-200">{String(bookingSuccessData.customerName)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-zinc-500 font-sans">Treatment</span>
-              <span className="text-zinc-200">{bookingSuccessData.serviceName}</span>
+              <span className="text-zinc-200">{String(bookingSuccessData.serviceName)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-zinc-500 font-sans">Kapster</span>
-              <span className="text-zinc-200">{bookingSuccessData.barberName}</span>
+              <span className="text-zinc-200">{String(bookingSuccessData.barberName)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-zinc-500 font-sans">Jadwal</span>
               <span className="text-emerald-400 font-bold">
-                {bookingSuccessData.date} • {bookingSuccessData.startTime} WITA
+                {String(bookingSuccessData.date)} • {String(bookingSuccessData.startTime)} WITA
+              </span>
+            </div>
+            {Number(bookingSuccessData.pointsRedeemed) > 0 && (
+              <div className="flex justify-between text-emerald-400 border-t border-zinc-800/80 pt-2">
+                <span className="font-sans">Potongan Poin ({bookingSuccessData.pointsRedeemed} Pts)</span>
+                <span>- Rp {Number(bookingSuccessData.discountAmount || 0).toLocaleString('id-ID')}</span>
+              </div>
+            )}
+            <div className="flex justify-between border-t border-zinc-800/80 pt-2 font-bold">
+              <span className="text-zinc-400 font-sans">Total Dibayar</span>
+              <span className="text-gold-400">
+                Rp {Number(bookingSuccessData.finalPrice ?? bookingSuccessData.price ?? 0).toLocaleString('id-ID')}
               </span>
             </div>
           </div>
@@ -671,7 +792,9 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
           <div className="p-4 bg-zinc-900/90 border border-gold-500/30 rounded-2xl flex items-center justify-between gap-3 shadow-lg">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-2xl bg-gold-500/20 border border-gold-500/40 text-gold-400 flex items-center justify-center font-black text-sm shrink-0">
-                {(customerName || customerUser.name || 'MB').slice(0, 2).toUpperCase()}
+                {String(customerName || customerUser.name || 'MB')
+                  .slice(0, 2)
+                  .toUpperCase()}
               </div>
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -829,7 +952,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
             </div>
           </div>
 
-          {/* Langkah 4: Data Kontak (Hanya muncul penuh jika sudah login) */}
+          {/* Langkah 4: Data Kontak */}
           {customerUser && (
             <div className="space-y-2">
               <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
