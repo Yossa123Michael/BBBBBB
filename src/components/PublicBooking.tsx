@@ -64,6 +64,28 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
   const [haircutNotes, setHaircutNotes] = useState(
     customerUser?.haircut_notes || ''
   );
+  const [loyaltyPoints, setLoyaltyPoints] = useState<number>(
+  Number(customerUser?.loyalty_points || 0)
+);
+
+useEffect(() => {
+  if (!customerUser?.id) return;
+  const syncProfile = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/customer/profile?id=${customerUser.id}`);
+      const json = await res.json();
+      if (json.success && json.data) {
+        setLoyaltyPoints(Number(json.data.loyalty_points || 0));
+        if (json.data.phone) setCustomerPhone(json.data.phone);
+        if (json.data.haircut_notes) setHaircutNotes(json.data.haircut_notes);
+        localStorage.setItem('barber_auth_user', JSON.stringify({ ...customerUser, ...json.data }));
+      }
+    } catch {}
+  };
+  syncProfile();
+  window.addEventListener('focus', syncProfile);
+  return () => window.removeEventListener('focus', syncProfile);
+}, [customerUser?.id]);
 
   useEffect(() => {
     if (customerUser) {
@@ -236,6 +258,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           outletId: '22222222-2222-2222-2222-222222222222',
+          customerId: customerUser?.id || null,
           customerName,
           customerPhone,
           barberId: selectedBarberId,
@@ -403,7 +426,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
               <div className="flex items-center gap-1 px-2.5 py-1 bg-gold-500/10 border border-gold-500/30 rounded-xl text-xs font-mono font-bold text-gold-400">
                 <Award className="w-3.5 h-3.5 text-gold-400" />
                 <span>
-                  Poin Member: {Number(customerUser.loyalty_points || 0)} Pts
+                  Poin Member: {loyaltyPoints} Pts
                 </span>
               </div>
               {onLogout && (
@@ -476,7 +499,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
                 <Award className="w-3 h-3 text-gold-400" /> Poin Member
               </div>
               <div className="text-sm font-black text-gold-400 font-mono">
-                {Number(customerUser.loyalty_points || 0)} Pts
+                {loyaltyPoints} Pts
               </div>
             </div>
           </div>
