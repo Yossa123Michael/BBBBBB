@@ -12,12 +12,19 @@ import {
   Award,
   Clock,
   CreditCard,
-  QrCode,
   XCircle,
   Lock,
   Gift,
   Minus,
   Plus,
+  MapPin,
+  ShoppingBag,
+  Ticket,
+  History,
+  Headphones,
+  Copy,
+  Check,
+  MessageCircle,
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:5000/api/v1`;
@@ -28,6 +35,13 @@ interface Service {
   base_price: number;
   duration_minutes: number;
   description?: string;
+}
+
+interface Product {
+  id: string;
+  sku?: string;
+  name: string;
+  selling_price: number;
 }
 
 interface Barber {
@@ -42,6 +56,42 @@ interface TimeSlot {
   available: boolean;
 }
 
+interface OutletOption {
+  id: string;
+  name: string;
+  address: string;
+  csPhone: string;
+}
+
+const OUTLET_BRANCHES: OutletOption[] = [
+  {
+    id: '22222222-2222-2222-2222-222222222222',
+    name: 'Cabang Makassar — Pantai Losari',
+    address: 'Jl. Penghibur No. 88, Makassar',
+    csPhone: '6281299887766',
+  },
+  {
+    id: '22222222-2222-2222-2222-222222222223',
+    name: 'Cabang Jakarta Selatan — Pondok Indah',
+    address: 'Jl. Metro Pondok Indah Blok BA No. 12, Jakarta Selatan',
+    csPhone: '6281299887766',
+  },
+  {
+    id: '22222222-2222-2222-2222-222222222224',
+    name: 'Cabang Jakarta Barat — Kebon Jeruk',
+    address: 'Jl. Arjuna Utara No. 9, Kebon Jeruk, Jakarta Barat',
+    csPhone: '6281299887766',
+  },
+];
+
+const PAYMENT_CHANNELS = [
+  { id: 'QRIS', label: 'QRIS Instan', type: 'QR', bankName: 'QRIS Nasional (Semua E-Wallet & M-Banking)' },
+  { id: 'VA_BCA', label: 'BCA Virtual Account', type: 'VA', bankName: 'Bank Central Asia (BCA)', vaPrefix: '88010' },
+  { id: 'VA_MANDIRI', label: 'Mandiri VA', type: 'VA', bankName: 'Bank Mandiri (Livin)', vaPrefix: '89022' },
+  { id: 'VA_BRI', label: 'BRI Virtual Account', type: 'VA', bankName: 'Bank Rakyat Indonesia (BRIVA)', vaPrefix: '77088' },
+  { id: 'EWALLET', label: 'GoPay / OVO / DANA', type: 'VA', bankName: 'Transfer E-Wallet / Top-Up VA', vaPrefix: '08991' },
+] as const;
+
 interface Props {
   onBack?: () => void;
   customerUser?: any;
@@ -49,11 +99,18 @@ interface Props {
   onOpenAuth?: (mode: 'LOGIN' | 'REGISTER') => void;
 }
 
-export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAuth }: Props) {
-  // 1. SEMUA HOOK WAJIB BERADA DI ATAS SEBELUM CONDITIONAL RETURN (Mencegah Black Screen React Error #310)
+export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Props) {
+  // 1. STATE UTAMA & NAVIGASI TAB
+  const [activeTab, setActiveTab] = useState<'BOOKING' | 'HISTORY'>('BOOKING');
+  const [selectedOutlet, setSelectedOutlet] = useState<OutletOption>(OUTLET_BRANCHES[0]);
+
   const [services, setServices] = useState<Service[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
-  const [selectedServiceId, setSelectedServiceId] = useState<string>('');
+
+  // Multi-Service & Add-On Products State
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
+  const [productCart, setProductCart] = useState<Record<string, number>>({});
   const [selectedBarberId, setSelectedBarberId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split('T')[0]
@@ -62,6 +119,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
   const [selectedSlot, setSelectedSlot] = useState<string>('');
   const [barberOffNotice, setBarberOffNotice] = useState<string | null>(null);
 
+  // State Profil & Poin Member
   const [customerName, setCustomerName] = useState<string>(
     String(customerUser?.name || customerUser?.full_name || '')
   );
@@ -75,22 +133,38 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     Number(customerUser?.loyalty_points || 0)
   );
 
-  // State Pembayaran 10 Menit & Tukar Poin
+  // State Pembayaran 10 Menit, Voucher, & Poin
   const [isLoadingCatalog, setIsLoadingCatalog] = useState<boolean>(true);
   const [isLoadingSlots, setIsLoadingSlots] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isConfirmingPayment, setIsConfirmingPayment] = useState<boolean>(false);
   const [pendingBooking, setPendingBooking] = useState<any>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(600);
-  const [paymentMethod, setPaymentMethod] = useState<'QRIS' | 'VA_BCA' | 'EWALLET'>('QRIS');
+  const [paymentMethod, setPaymentMethod] = useState<string>('QRIS');
   const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
+
+  // State Voucher Promo
+  const [voucherInput, setVoucherInput] = useState<string>('');
+  const [appliedVoucher, setAppliedVoucher] = useState<{
+    code: string;
+    discountAmount: number;
+  } | null>(null);
+  const [voucherMsg, setVoucherMsg] = useState<{ text: string; isError: boolean } | null>(null);
+  const [isCheckingVoucher, setIsCheckingVoucher] = useState<boolean>(false);
+
+  // State Copy Nomor VA, Riwayat Pesanan, & Customer Service
+  const [copiedVA, setCopiedVA] = useState<boolean>(false);
+  const [bookingHistory, setBookingHistory] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
+  const [showCSModal, setShowCSModal] = useState<boolean>(false);
+
   const [expiredNotice, setExpiredNotice] = useState<string | null>(null);
   const [bookingSuccessData, setBookingSuccessData] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
   const slotRollRef = useRef<HTMLDivElement | null>(null);
 
-  // Sinkronisasi Poin & Profil Terbaru dari Server
+  // Sinkronisasi Profil & Poin Member
   const syncMemberProfile = async () => {
     if (!customerUser?.id) return;
     try {
@@ -111,9 +185,27 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     }
   };
 
+  // Ambil Riwayat Pemesanan Pelanggan
+  const fetchCustomerHistory = async () => {
+    if (!customerUser?.id) return;
+    setIsLoadingHistory(true);
+    try {
+      const res = await fetch(`${API_BASE}/bookings/customer-history?customerId=${customerUser.id}`);
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setBookingHistory(json.data);
+      }
+    } catch (err) {
+      console.error('Fetch history error:', err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
   useEffect(() => {
     if (!customerUser) {
       setLoyaltyPoints(0);
+      setBookingHistory([]);
       return;
     }
     setCustomerName(String(customerUser.name || customerUser.full_name || ''));
@@ -122,17 +214,21 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     setLoyaltyPoints(Number(customerUser.loyalty_points || 0));
 
     syncMemberProfile();
+    fetchCustomerHistory();
     window.addEventListener('focus', syncMemberProfile);
     return () => window.removeEventListener('focus', syncMemberProfile);
   }, [customerUser?.id]);
 
-  // Pulihkan pilihan jadwal jika user baru saja selesai Login
+  // Pulihkan Draft Pilihan setelah Login
   useEffect(() => {
     const savedDraft = sessionStorage.getItem('barber_booking_draft');
     if (savedDraft) {
       try {
         const parsed = JSON.parse(savedDraft);
-        if (parsed.serviceId) setSelectedServiceId(String(parsed.serviceId));
+        if (Array.isArray(parsed.serviceIds) && parsed.serviceIds.length > 0) {
+          setSelectedServiceIds(parsed.serviceIds);
+        }
+        if (parsed.productCart) setProductCart(parsed.productCart);
         if (parsed.barberId) setSelectedBarberId(String(parsed.barberId));
         if (parsed.date) setSelectedDate(String(parsed.date));
         if (parsed.slot) setSelectedSlot(String(parsed.slot));
@@ -141,7 +237,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     }
   }, [customerUser]);
 
-  // Ambil Katalog Layanan & Barber
+  // Ambil Katalog Layanan, Produk Ritel, & Kapster
   useEffect(() => {
     let isMounted = true;
     setIsLoadingCatalog(true);
@@ -153,13 +249,19 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
         if (!isMounted) return;
         if (data.success && data.data) {
           const srvList: Service[] = data.data.services || [];
+          const prdList: Product[] = data.data.products || [];
           const brbList: Barber[] = data.data.barbers || [];
 
           setServices(srvList);
+          setProducts(prdList);
           setBarbers(brbList);
 
-          setSelectedServiceId((prev) => prev || (srvList[0]?.id ?? ''));
-          setSelectedBarberId((prev) => prev || (brbList[0]?.id ?? ''));
+          if (srvList.length > 0) {
+            setSelectedServiceIds((prev) => (prev.length > 0 ? prev : [srvList[0].id]));
+          }
+          if (brbList.length > 0) {
+            setSelectedBarberId((prev) => prev || brbList[0].id);
+          }
         } else {
           setErrorMsg('Katalog layanan tidak berhasil dimuat dari server.');
         }
@@ -178,9 +280,57 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     };
   }, []);
 
-  // Fungsi Muat Ulang Slot Jam Ketersediaan
+  // Kalkulasi Total Layanan, Produk, & Durasi
+  const selectedServicesList = services.filter((s) => selectedServiceIds.includes(s.id));
+  const totalServicePrice = selectedServicesList.reduce(
+    (sum, s) => sum + Number(s.base_price || 0),
+    0
+  );
+  const totalDurationMinutes = selectedServicesList.reduce(
+    (sum, s) => sum + Number(s.duration_minutes || 45),
+    0
+  );
+
+  const selectedProductsList = products
+    .filter((p) => (productCart[p.id] || 0) > 0)
+    .map((p) => ({
+      ...p,
+      qty: productCart[p.id],
+      lineTotal: Number(p.selling_price || 0) * productCart[p.id],
+    }));
+
+  const totalProductPrice = selectedProductsList.reduce((sum, p) => sum + p.lineTotal, 0);
+  const estimatedSubtotal = totalServicePrice + totalProductPrice;
+
+  // Toggle Pilih Multi-Layanan
+  const toggleServiceSelection = (id: string) => {
+    setSelectedServiceIds((prev) => {
+      if (prev.includes(id)) {
+        if (prev.length === 1) return prev; // Minimal 1 layanan terpilih
+        return prev.filter((item) => item !== id);
+      }
+      return [...prev, id];
+    });
+  };
+
+  // Ubah Kuantitas Produk Ritel
+  const updateProductQty = (productId: string, delta: number) => {
+    setProductCart((prev) => {
+      const current = prev[productId] || 0;
+      const next = Math.max(0, current + delta);
+      const updated = { ...prev };
+      if (next === 0) {
+        delete updated[productId];
+      } else {
+        updated[productId] = next;
+      }
+      return updated;
+    });
+  };
+
+  // Ambil Slot Jam Berdasarkan Total Durasi Semua Layanan yang Dipilih
   const fetchSlots = async () => {
-    if (!selectedBarberId || !selectedDate || !selectedServiceId) return;
+    if (!selectedBarberId || !selectedDate || selectedServiceIds.length === 0) return;
     setIsLoadingSlots(true);
     setBarberOffNotice(null);
 
@@ -197,11 +347,11 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
         return;
       }
 
-      const targetService = services.find((s) => s.id === selectedServiceId);
-      const duration = targetService?.duration_minutes || 45;
+      const duration = totalDurationMinutes || 45;
+      const primaryServiceId = selectedServiceIds[0];
 
       const slotRes = await fetch(
-        `${API_BASE}/bookings/availability?barberId=${selectedBarberId}&date=${selectedDate}&serviceId=${selectedServiceId}&duration=${duration}`
+        `${API_BASE}/bookings/availability?barberId=${selectedBarberId}&date=${selectedDate}&serviceId=${primaryServiceId}&duration=${duration}`
       );
       const slotData = await slotRes.json();
 
@@ -227,35 +377,31 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
 
   useEffect(() => {
     fetchSlots();
-  }, [selectedBarberId, selectedDate, selectedServiceId, services]);
+  }, [selectedBarberId, selectedDate, selectedServiceIds.join(','), services]);
 
-  // Countdown Timer 10 Menit (Berjalan Mundur Setiap Detik Tanpa Freeze)
+  // Countdown Timer 10 Menit
   useEffect(() => {
     if (!pendingBooking) return;
-
     const interval = setInterval(() => {
       setRemainingSeconds((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
-
     return () => clearInterval(interval);
   }, [pendingBooking]);
 
-  // Otomatis Hanguskan Pesanan Saat Timer Mencapai 00:00
   useEffect(() => {
     if (!pendingBooking || remainingSeconds > 0) return;
-
     const targetId = pendingBooking.bookingId || pendingBooking.bookingCode;
-    fetch(`${API_BASE}/bookings/${targetId}/cancel`, {
-      method: 'POST',
-    })
+    fetch(`${API_BASE}/bookings/${targetId}/cancel`, { method: 'POST' })
       .catch(() => {})
       .finally(() => {
         setPendingBooking(null);
         setPointsToRedeem(0);
+        setAppliedVoucher(null);
         setExpiredNotice(
           'Batas waktu pembayaran 10 menit telah habis. Pesanan Anda otomatis hangus dan slot jam telah dibuka kembali.'
         );
         fetchSlots();
+        fetchCustomerHistory();
       });
   }, [remainingSeconds, pendingBooking]);
 
@@ -266,7 +412,45 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Proses Submit Reservasi (Wajib Login)
+  // Validasi Voucher Promo di Layar Pembayaran
+  const handleValidateVoucher = async () => {
+    if (!voucherInput.trim() || !pendingBooking) return;
+    setIsCheckingVoucher(true);
+    setVoucherMsg(null);
+    try {
+      const res = await fetch(`${API_BASE}/pos/vouchers/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: voucherInput.trim().toUpperCase(),
+          subtotal: Number(pendingBooking.price || 0),
+        }),
+      });
+      const json = await res.json();
+      if (json.success && json.data) {
+        setAppliedVoucher({
+          code: json.data.code,
+          discountAmount: Number(json.data.discountAmount || 0),
+        });
+        setVoucherMsg({
+          text: `Voucher ${json.data.code} berhasil dipasang (-Rp ${Number(json.data.discountAmount).toLocaleString('id-ID')})`,
+          isError: false,
+        });
+      } else {
+        setAppliedVoucher(null);
+        setVoucherMsg({
+          text: json.message || 'Voucher tidak valid atau minimal belanja belum terpenuhi',
+          isError: true,
+        });
+      }
+    } catch {
+      setVoucherMsg({ text: 'Gagal memeriksa voucher ke server', isError: true });
+    } finally {
+      setIsCheckingVoucher(false);
+    }
+  };
+
+  // Submit Pemesanan Baru
   const handleSubmitBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     setExpiredNotice(null);
@@ -275,17 +459,14 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
       sessionStorage.setItem(
         'barber_booking_draft',
         JSON.stringify({
-          serviceId: selectedServiceId,
+          serviceIds: selectedServiceIds,
+          productCart,
           barberId: selectedBarberId,
           date: selectedDate,
           slot: selectedSlot,
         })
       );
-      if (onOpenAuth) {
-        onOpenAuth('LOGIN');
-      } else {
-        alert('Silakan masuk (login) atau buat akun terlebih dahulu untuk memesan jadwal!');
-      }
+      if (onOpenAuth) onOpenAuth('LOGIN');
       return;
     }
 
@@ -294,8 +475,8 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
       return;
     }
 
-    if (barberOffNotice) {
-      alert(`Peringatan: ${barberOffNotice}. Silakan pilih kapster lain atau ganti tanggal kunjungan.`);
+    if (selectedServiceIds.length === 0) {
+      alert('Pilih minimal 1 layanan treatment!');
       return;
     }
 
@@ -306,16 +487,26 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
 
     setIsSubmitting(true);
     try {
+      const productPayload = selectedProductsList.map((p) => ({
+        id: p.id,
+        name: p.name,
+        price: p.selling_price,
+        qty: p.qty,
+      }));
+
       const res = await fetch(`${API_BASE}/bookings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          outletId: '22222222-2222-2222-2222-222222222222',
+          outletId: selectedOutlet.id,
+          outletName: selectedOutlet.name,
           customerId: customerUser.id,
           customerName,
           customerPhone,
           barberId: selectedBarberId,
-          serviceId: selectedServiceId,
+          serviceId: selectedServiceIds[0],
+          serviceIds: selectedServiceIds,
+          productItems: productPayload,
           date: selectedDate,
           startTime: selectedSlot,
           haircutNotes,
@@ -324,22 +515,29 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
 
       const result = await res.json();
       if (result.success) {
-        const selectedSrv = services.find((s) => s.id === selectedServiceId);
         const selectedBrb = barbers.find((b) => b.id === selectedBarberId);
-        const safePrice = Number(result.data?.price || selectedSrv?.base_price || 0);
+        const summaryFallback = [
+          ...selectedServicesList.map((s) => s.name),
+          ...selectedProductsList.map((p) => `${p.name} (${p.qty}x)`),
+        ].join(', ');
 
         setPointsToRedeem(0);
+        setAppliedVoucher(null);
+        setVoucherInput('');
+        setVoucherMsg(null);
         setRemainingSeconds(600);
         setPendingBooking({
           bookingId: String(result.data?.bookingId || result.data?.id || result.data?.bookingCode || ''),
           bookingCode: String(result.data?.bookingCode || 'BRB-ONLINE'),
+          outletName: String(result.data?.outletName || selectedOutlet.name),
           date: String(result.data?.date || selectedDate).slice(0, 10),
           startTime: String(result.data?.startTime || selectedSlot).slice(0, 5),
-          price: safePrice,
+          price: Number(result.data?.price || estimatedSubtotal || 0),
           customerName: String(customerName),
-          serviceName: String(result.data?.serviceName || selectedSrv?.name || 'Treatment'),
+          serviceName: String(result.data?.serviceName || summaryFallback),
           barberName: String(selectedBrb?.nickname || 'Kapster'),
         });
+        fetchCustomerHistory();
       } else {
         alert('Gagal reservasi: ' + (result.message || 'Slot tidak tersedia'));
         fetchSlots();
@@ -351,7 +549,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     }
   };
 
-  // Konfirmasi Pembayaran + Tukar Poin
+  // Konfirmasi Pembayaran (Lunas)
   const handleConfirmPayment = async () => {
     const targetId = pendingBooking?.bookingId || pendingBooking?.bookingCode;
     if (!targetId) return;
@@ -359,10 +557,12 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     setIsConfirmingPayment(true);
     try {
       const basePrice = Number(pendingBooking.price || 0);
-      const maxPts = Math.min(loyaltyPoints, Math.floor(basePrice / 1000));
+      const vDisc = Number(appliedVoucher?.discountAmount || 0);
+      const afterVoucher = Math.max(0, basePrice - vDisc);
+      const maxPts = Math.min(loyaltyPoints, Math.floor(afterVoucher / 1000));
       const validPoints = Math.max(0, Math.min(pointsToRedeem, maxPts));
       const pointDiscount = validPoints * 1000;
-      const finalPaid = Math.max(0, basePrice - pointDiscount);
+      const finalPaid = Math.max(0, afterVoucher - pointDiscount);
 
       const res = await fetch(`${API_BASE}/bookings/${targetId}/pay`, {
         method: 'POST',
@@ -370,34 +570,37 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
         body: JSON.stringify({
           paymentMethod,
           pointsRedeemed: validPoints,
+          voucherCode: appliedVoucher?.code || null,
         }),
       });
       const result = await res.json();
 
       if (result.success) {
-        // Update saldo poin lokal secara langsung
-        const newPts =
-          result.data?.remainingPoints !== undefined
-            ? Number(result.data.remainingPoints)
-            : Math.max(0, loyaltyPoints - validPoints);
-        setLoyaltyPoints(newPts);
+        if (result.data?.remainingPoints !== undefined) {
+          setLoyaltyPoints(Number(result.data.remainingPoints));
+        }
         syncMemberProfile();
+        fetchCustomerHistory();
 
         setBookingSuccessData({
           ...pendingBooking,
           paymentMethod,
           originalPrice: basePrice,
+          voucherCode: appliedVoucher?.code || null,
+          voucherDiscount: vDisc,
           pointsRedeemed: validPoints,
-          discountAmount: pointDiscount,
-          finalPrice: finalPaid,
+          discountAmount: vDisc + pointDiscount,
+          finalPrice: result.data?.finalPrice ?? finalPaid,
         });
         setPendingBooking(null);
         setPointsToRedeem(0);
+        setAppliedVoucher(null);
+        setProductCart({});
       } else {
         setPendingBooking(null);
-        setPointsToRedeem(0);
         setExpiredNotice(String(result.message || 'Waktu pembayaran habis, pesanan hangus.'));
         fetchSlots();
+        fetchCustomerHistory();
       }
     } catch (err: any) {
       alert('Gagal memverifikasi pembayaran: ' + err.message);
@@ -410,22 +613,20 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
   const handleCancelPending = async () => {
     const targetId = pendingBooking?.bookingId || pendingBooking?.bookingCode;
     if (targetId) {
-      await fetch(`${API_BASE}/bookings/${targetId}/cancel`, {
-        method: 'POST',
-      }).catch(() => {});
+      await fetch(`${API_BASE}/bookings/${targetId}/cancel`, { method: 'POST' }).catch(() => {});
     }
     setPendingBooking(null);
     setPointsToRedeem(0);
+    setAppliedVoucher(null);
     fetchSlots();
+    fetchCustomerHistory();
   };
-
-  // ==================== CONDITIONAL VIEWS ====================
 
   if (isLoadingCatalog) {
     return (
       <div className="flex-1 min-h-[100dvh] bg-zinc-950 flex flex-col items-center justify-center p-4 text-zinc-400 gap-3">
         <RefreshCw className="w-8 h-8 animate-spin text-gold-500" />
-        <p className="text-xs font-mono">Memuat portal reservasi online...</p>
+        <p className="text-xs font-mono">Memuat portal pelanggan Barbershop OS...</p>
       </div>
     );
   }
@@ -442,18 +643,29 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     );
   }
 
-  // LAYAR MENUNGGU PEMBAYARAN (COUNTDOWN 10 MENIT + TUKAR POIN MEMBER)
+  // ==================== LAYAR PEMBAYARAN (QRIS ASLI, VIRTUAL ACCOUNT, VOUCHER, & POIN) ====================
   if (pendingBooking) {
     const originalPrice = Number(pendingBooking.price || 0);
-    const maxRedeemablePoints = Math.min(loyaltyPoints, Math.floor(originalPrice / 1000));
+    const voucherDiscRp = Number(appliedVoucher?.discountAmount || 0);
+    const priceAfterVoucher = Math.max(0, originalPrice - voucherDiscRp);
+    const maxRedeemablePoints = Math.min(loyaltyPoints, Math.floor(priceAfterVoucher / 1000));
     const appliedPoints = Math.max(0, Math.min(pointsToRedeem, maxRedeemablePoints));
     const pointsDiscountRp = appliedPoints * 1000;
-    const finalBillRp = Math.max(0, originalPrice - pointsDiscountRp);
+    const finalBillRp = Math.max(0, priceAfterVoucher - pointsDiscountRp);
+
+    const activeChannel =
+      PAYMENT_CHANNELS.find((c) => c.id === paymentMethod) || PAYMENT_CHANNELS[0];
+    const cleanUserPhone = (customerPhone || '081299887766').replace(/\D/g, '').slice(-8);
+    const virtualAccountNumber = `${(activeChannel as any).vaPrefix || '88010'}${cleanUserPhone}`;
+    const qrisPayload = `00020101021226610016ID.CO.BARBERSHOP.WWW01189360091431234567890215${pendingBooking.bookingCode}520458125303360540${finalBillRp}5802ID5913BARBERSHOP OS6008MAKASSAR6304A1B2`;
+    const qrisImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(
+      qrisPayload
+    )}`;
 
     return (
       <div className="flex-1 min-h-[100dvh] bg-zinc-950 flex items-center justify-center p-4 text-zinc-100 select-none overflow-y-auto">
-        <div className="w-full max-w-md bg-zinc-900 border border-gold-500/40 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl my-auto">
-          {/* Header & Sisa Waktu */}
+        <div className="w-full max-w-lg bg-zinc-900 border border-gold-500/40 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl my-4">
+          {/* Header & Countdown Timer */}
           <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
             <div className="flex items-center gap-2.5">
               <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
@@ -461,7 +673,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
               </div>
               <div>
                 <h2 className="text-sm font-black text-zinc-100">Selesaikan Pembayaran</h2>
-                <p className="text-[11px] text-zinc-400">Slot jam sedang dikunci untuk Anda</p>
+                <p className="text-[11px] text-zinc-400">Slot kapster sedang dikunci untuk Anda</p>
               </div>
             </div>
             <div className="text-right bg-red-500/10 border border-red-500/30 px-3 py-1.5 rounded-xl">
@@ -472,34 +684,36 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
             </div>
           </div>
 
-          {/* Detail Ringkasan Booking & Potongan Poin */}
+          {/* Rincian Pesanan & Diskon */}
           <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-4 font-mono text-xs space-y-2">
             <div className="flex justify-between">
-              <span className="text-zinc-500 font-sans">Kode Booking</span>
-              <span className="text-gold-400 font-bold">{String(pendingBooking.bookingCode)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-500 font-sans">Pelanggan</span>
-              <span className="text-zinc-200">{String(pendingBooking.customerName)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-500 font-sans">Treatment & Kapster</span>
-              <span className="text-zinc-200">
-                {String(pendingBooking.serviceName)} • {String(pendingBooking.barberName)}
+              <span className="text-zinc-500 font-sans">Kode & Lokasi</span>
+              <span className="text-gold-400 font-bold text-right">
+                {pendingBooking.bookingCode} • {pendingBooking.outletName}
               </span>
             </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-zinc-500 font-sans shrink-0">Item Pesanan</span>
+              <span className="text-zinc-200 text-right">{pendingBooking.serviceName}</span>
+            </div>
             <div className="flex justify-between">
-              <span className="text-zinc-500 font-sans">Jadwal Dikunci</span>
+              <span className="text-zinc-500 font-sans">Kapster & Jadwal</span>
               <span className="text-emerald-400 font-bold">
-                {String(pendingBooking.date)} • {String(pendingBooking.startTime)} WITA
+                {pendingBooking.barberName} • {pendingBooking.date} ({pendingBooking.startTime} WITA)
               </span>
             </div>
 
             <div className="border-t border-zinc-800/80 pt-2 space-y-1.5">
               <div className="flex justify-between text-zinc-400">
-                <span className="font-sans">Harga Layanan</span>
+                <span className="font-sans">Subtotal Pesanan</span>
                 <span>Rp {originalPrice.toLocaleString('id-ID')}</span>
               </div>
+              {appliedVoucher && (
+                <div className="flex justify-between text-emerald-400">
+                  <span className="font-sans">Voucher ({appliedVoucher.code})</span>
+                  <span>- Rp {voucherDiscRp.toLocaleString('id-ID')}</span>
+                </div>
+              )}
               {appliedPoints > 0 && (
                 <div className="flex justify-between text-emerald-400">
                   <span className="font-sans">Tukar Poin ({appliedPoints} Pts)</span>
@@ -507,7 +721,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
                 </div>
               )}
               <div className="flex justify-between border-t border-zinc-800 pt-2 text-sm">
-                <span className="text-zinc-200 font-sans font-bold">Total Tagihan</span>
+                <span className="text-zinc-100 font-sans font-bold">Total Tagihan Bersih</span>
                 <span className="text-gold-400 font-black">
                   Rp {finalBillRp.toLocaleString('id-ID')}
                 </span>
@@ -515,8 +729,51 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
             </div>
           </div>
 
-          {/* FITUR TUKAR POIN MEMBER (1 Poin = Rp 1.000) */}
-          <div className="p-3.5 bg-zinc-950 border border-gold-500/30 rounded-2xl space-y-2.5">
+          {/* KLAIM KODE VOUCHER PROMO */}
+          <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-2">
+            <label className="text-[11px] font-bold text-zinc-300 flex items-center gap-1.5">
+              <Ticket className="w-3.5 h-3.5 text-gold-400" /> Pakai Kode Voucher Promo:
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Contoh: HEMAT20K atau DISKON10"
+                value={voucherInput}
+                onChange={(e) => setVoucherInput(e.target.value.toUpperCase())}
+                className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs font-mono text-zinc-100 uppercase focus:outline-none focus:border-gold-500"
+              />
+              {appliedVoucher ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppliedVoucher(null);
+                    setVoucherInput('');
+                    setVoucherMsg(null);
+                  }}
+                  className="px-3 py-2 bg-red-500/20 text-red-300 border border-red-500/30 rounded-xl text-xs font-bold"
+                >
+                  Hapus
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={isCheckingVoucher || !voucherInput.trim()}
+                  onClick={handleValidateVoucher}
+                  className="px-4 py-2 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-zinc-950 rounded-xl text-xs font-black"
+                >
+                  {isCheckingVoucher ? '...' : 'Pakai'}
+                </button>
+              )}
+            </div>
+            {voucherMsg && (
+              <p className={`text-[11px] font-mono ${voucherMsg.isError ? 'text-red-400' : 'text-emerald-400'}`}>
+                {voucherMsg.text}
+              </p>
+            )}
+          </div>
+
+          {/* TUKAR POIN MEMBER */}
+          <div className="p-3.5 bg-zinc-950 border border-gold-500/30 rounded-2xl space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Gift className="w-4 h-4 text-gold-400" />
@@ -527,52 +784,38 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
                   </div>
                 </div>
               </div>
-
               {maxRedeemablePoints > 0 ? (
                 <button
                   type="button"
                   onClick={() =>
                     setPointsToRedeem(appliedPoints === maxRedeemablePoints ? 0 : maxRedeemablePoints)
                   }
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono transition-all border ${
-                    appliedPoints > 0
-                      ? 'bg-gold-500 text-zinc-950 border-gold-400'
-                      : 'bg-zinc-900 text-gold-400 border-gold-500/40 hover:bg-zinc-800'
-                  }`}
+                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono bg-zinc-900 text-gold-400 border border-gold-500/40"
                 >
-                  {appliedPoints === maxRedeemablePoints ? 'Batalkan Poin' : 'Pakai Semua'}
+                  {appliedPoints === maxRedeemablePoints ? 'Reset Poin' : 'Pakai Semua'}
                 </button>
               ) : (
-                <span className="text-[10px] text-zinc-500 font-mono">Belum ada poin</span>
+                <span className="text-[10px] text-zinc-500 font-mono">Saldo 0 Pts</span>
               )}
             </div>
-
             {maxRedeemablePoints > 0 && (
-              <div className="flex items-center justify-between gap-2 pt-1 border-t border-zinc-800/80">
-                <span className="text-[11px] text-zinc-400">Jumlah Poin Ditukar:</span>
+              <div className="flex items-center justify-between pt-1 border-t border-zinc-800/80">
+                <span className="text-[11px] text-zinc-400">Jumlah Poin:</span>
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => setPointsToRedeem(Math.max(0, appliedPoints - 1))}
-                    className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-700 hover:border-gold-500 flex items-center justify-center text-zinc-200"
+                    className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-700 flex items-center justify-center"
                   >
                     <Minus className="w-3.5 h-3.5" />
                   </button>
-                  <input
-                    type="number"
-                    min={0}
-                    max={maxRedeemablePoints}
-                    value={appliedPoints}
-                    onChange={(e) => {
-                      const val = Math.max(0, Math.min(maxRedeemablePoints, Number(e.target.value) || 0));
-                      setPointsToRedeem(val);
-                    }}
-                    className="w-14 bg-zinc-900 border border-zinc-700 rounded-lg py-1 text-center font-mono text-xs font-bold text-gold-400 focus:outline-none focus:border-gold-500"
-                  />
+                  <span className="w-12 text-center font-mono text-xs font-bold text-gold-400">
+                    {appliedPoints}
+                  </span>
                   <button
                     type="button"
                     onClick={() => setPointsToRedeem(Math.min(maxRedeemablePoints, appliedPoints + 1))}
-                    className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-700 hover:border-gold-500 flex items-center justify-center text-zinc-200"
+                    className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-700 flex items-center justify-center"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>
@@ -581,37 +824,84 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
             )}
           </div>
 
-          {/* Pilihan Metode Pembayaran */}
-          <div className="space-y-2">
-            <label className="text-[11px] font-bold text-zinc-400 uppercase">
+          {/* PILIH METODE PEMBAYARAN (QRIS ASLI & NOMOR VIRTUAL ACCOUNT) */}
+          <div className="space-y-2.5">
+            <label className="text-[11px] font-bold text-zinc-400 uppercase block">
               Pilih Metode Pembayaran:
             </label>
-            <div className="grid grid-cols-3 gap-2">
-              {(['QRIS', 'VA_BCA', 'EWALLET'] as const).map((method) => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+              {PAYMENT_CHANNELS.map((ch) => (
                 <button
-                  key={method}
+                  key={ch.id}
                   type="button"
-                  onClick={() => setPaymentMethod(method)}
-                  className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
-                    paymentMethod === method
+                  onClick={() => setPaymentMethod(ch.id)}
+                  className={`p-2 rounded-xl border text-[11px] font-bold transition-all ${
+                    paymentMethod === ch.id
                       ? 'bg-gold-500/15 border-gold-500 text-gold-400'
                       : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
                   }`}
                 >
-                  {method === 'QRIS' ? 'QRIS Instan' : method === 'VA_BCA' ? 'BCA Virtual' : 'GoPay / OVO'}
+                  {ch.label}
                 </button>
               ))}
             </div>
 
-            <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-2xl text-center space-y-1.5">
-              <QrCode className="w-16 h-16 text-zinc-200 mx-auto" />
-              <p className="text-[11px] text-zinc-400">
-                Scan QRIS atau selesaikan pembayaran <b>Rp {finalBillRp.toLocaleString('id-ID')}</b> sebelum waktu <b>10 menit</b> habis.
-              </p>
-            </div>
+            {activeChannel.type === 'QR' ? (
+              <div className="p-4 bg-white text-zinc-950 rounded-2xl text-center space-y-2 shadow-inner">
+                <div className="flex items-center justify-between border-b border-zinc-200 pb-2 text-xs font-black">
+                  <span>QRIS STANDAR PEMBAYARAN NASIONAL</span>
+                  <span className="text-emerald-700 font-mono">NMID: ID1026008812</span>
+                </div>
+                <img
+                  src={qrisImageUrl}
+                  alt="QRIS Barbershop OS"
+                  className="w-48 h-48 mx-auto rounded-lg border border-zinc-200 p-1"
+                />
+                <div className="text-xs font-bold text-zinc-800">
+                  BARBERSHOP OS • Rp {finalBillRp.toLocaleString('id-ID')}
+                </div>
+                <p className="text-[10px] text-zinc-600">
+                  Buka BCA Mobile, Livin, BRImo, GoPay, OVO, DANA, atau ShopeePay lalu scan kode QR di atas.
+                </p>
+              </div>
+            ) : (
+              <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-zinc-300">{activeChannel.bankName}</span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 bg-gold-500/10 text-gold-400 rounded">
+                    Dicek Otomatis
+                  </span>
+                </div>
+                <div className="p-3 bg-zinc-900 border border-zinc-700 rounded-xl flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] text-zinc-400">Nomor Virtual Account:</div>
+                    <div className="text-base font-mono font-black text-gold-400 tracking-wider">
+                      {virtualAccountNumber}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(virtualAccountNumber);
+                      setCopiedVA(true);
+                      setTimeout(() => setCopiedVA(false), 2000);
+                    }}
+                    className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-xs font-bold rounded-lg flex items-center gap-1.5 text-zinc-200"
+                  >
+                    {copiedVA ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedVA ? 'Tersalin' : 'Salin VA'}</span>
+                  </button>
+                </div>
+                <div className="text-[11px] text-zinc-400 space-y-1">
+                  <div>• Nominal Transfer: <b className="text-zinc-100 font-mono">Rp {finalBillRp.toLocaleString('id-ID')}</b></div>
+                  <div>• Nama Merchant: <b className="text-zinc-100">BARBERSHOP OS ({pendingBooking.bookingCode})</b></div>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="space-y-2">
+          {/* Tombol Konfirmasi Bayar & Batal */}
+          <div className="space-y-2 pt-1">
             <button
               type="button"
               disabled={isConfirmingPayment}
@@ -622,7 +912,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
                 <RefreshCw className="w-4 h-4 animate-spin" />
               ) : (
                 <>
-                  <CreditCard className="w-4 h-4" /> SAYA SUDAH BAYAR (KONFIRMASI)
+                  <CreditCard className="w-4 h-4" /> SAYA SUDAH BAYAR (KONFIRMASI SEKARANG)
                 </>
               )}
             </button>
@@ -631,7 +921,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
               onClick={handleCancelPending}
               className="w-full py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-red-400 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5"
             >
-              <XCircle className="w-4 h-4" /> Batalkan Pesanan & Ganti Jam
+              <XCircle className="w-4 h-4" /> Batalkan Pesanan & Ganti Jadwal
             </button>
           </div>
         </div>
@@ -639,7 +929,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     );
   }
 
-  // LAYAR TIKET SUKSES RESERVASI (SETELAH LUNAS)
+  // ==================== LAYAR E-TICKET SUKSES ====================
   if (bookingSuccessData) {
     return (
       <div className="flex-1 min-h-[100dvh] bg-zinc-950 flex items-center justify-center p-4 text-zinc-100 select-none">
@@ -649,66 +939,64 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
           </div>
 
           <div className="space-y-1">
-            <h2 className="text-lg font-black text-zinc-100">
-              Pembayaran & Reservasi Berhasil!
-            </h2>
+            <h2 className="text-lg font-black text-zinc-100">Pembayaran & Reservasi Berhasil!</h2>
             <p className="text-xs text-zinc-400">
-              Jadwal kapster telah dikunci untuk Anda dan e-ticket dikirim via WhatsApp.
+              Jadwal kapster telah dikunci dan e-ticket dikirim ke WhatsApp Anda.
             </p>
           </div>
 
           <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-4 font-mono text-left space-y-2 text-xs">
             <div className="flex justify-between border-b border-zinc-800/80 pb-2">
               <span className="text-zinc-500 font-sans">Kode Booking</span>
-              <span className="text-gold-400 font-bold">{String(bookingSuccessData.bookingCode)}</span>
+              <span className="text-gold-400 font-bold">{bookingSuccessData.bookingCode}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-500 font-sans">Status Bayar</span>
+              <span className="text-zinc-500 font-sans">Lokasi Cabang</span>
+              <span className="text-zinc-200 text-right">{bookingSuccessData.outletName}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-zinc-500 font-sans shrink-0">Pesanan</span>
+              <span className="text-zinc-200 text-right">{bookingSuccessData.serviceName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500 font-sans">Kapster & Jadwal</span>
               <span className="text-emerald-400 font-bold">
-                LUNAS ({String(bookingSuccessData.paymentMethod)})
+                {bookingSuccessData.barberName} • {bookingSuccessData.date} ({bookingSuccessData.startTime})
               </span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-500 font-sans">Pelanggan</span>
-              <span className="text-zinc-200">{String(bookingSuccessData.customerName)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-500 font-sans">Treatment</span>
-              <span className="text-zinc-200">{String(bookingSuccessData.serviceName)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-500 font-sans">Kapster</span>
-              <span className="text-zinc-200">{String(bookingSuccessData.barberName)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-500 font-sans">Jadwal</span>
-              <span className="text-emerald-400 font-bold">
-                {String(bookingSuccessData.date)} • {String(bookingSuccessData.startTime)} WITA
-              </span>
-            </div>
-            {Number(bookingSuccessData.pointsRedeemed) > 0 && (
+            {Number(bookingSuccessData.discountAmount) > 0 && (
               <div className="flex justify-between text-emerald-400 border-t border-zinc-800/80 pt-2">
-                <span className="font-sans">Potongan Poin ({bookingSuccessData.pointsRedeemed} Pts)</span>
-                <span>- Rp {Number(bookingSuccessData.discountAmount || 0).toLocaleString('id-ID')}</span>
+                <span className="font-sans">Total Diskon (Voucher/Poin)</span>
+                <span>- Rp {Number(bookingSuccessData.discountAmount).toLocaleString('id-ID')}</span>
               </div>
             )}
             <div className="flex justify-between border-t border-zinc-800/80 pt-2 font-bold">
-              <span className="text-zinc-400 font-sans">Total Dibayar</span>
+              <span className="text-zinc-400 font-sans">Total Lunas ({bookingSuccessData.paymentMethod})</span>
               <span className="text-gold-400">
-                Rp {Number(bookingSuccessData.finalPrice ?? bookingSuccessData.price ?? 0).toLocaleString('id-ID')}
+                Rp {Number(bookingSuccessData.finalPrice ?? 0).toLocaleString('id-ID')}
               </span>
             </div>
           </div>
 
-          <div className="space-y-2 pt-2">
+          <div className="grid grid-cols-2 gap-2 pt-2">
+            <button
+              onClick={() => {
+                setBookingSuccessData(null);
+                setActiveTab('HISTORY');
+                fetchCustomerHistory();
+              }}
+              className="py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 font-bold text-xs rounded-xl"
+            >
+              LIHAT RIWAYAT
+            </button>
             <button
               onClick={() => {
                 setBookingSuccessData(null);
                 fetchSlots();
               }}
-              className="w-full py-3 bg-gold-500 hover:bg-gold-400 text-zinc-950 font-black text-xs rounded-xl shadow-lg shadow-gold-500/20 transition-all active:scale-95"
+              className="py-3 bg-gold-500 hover:bg-gold-400 text-zinc-950 font-black text-xs rounded-xl"
             >
-              BUAT RESERVASI LAIN
+              PESAN LAGI
             </button>
           </div>
         </div>
@@ -716,39 +1004,71 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
     );
   }
 
-  const activeService = services.find((s) => s.id === selectedServiceId);
-
+  // ==================== TAMPILAN UTAMA PORTAL PELANGGAN ====================
   return (
-    <div className="flex-1 min-h-[100dvh] bg-zinc-950 text-zinc-100 flex flex-col justify-between overflow-y-auto no-scrollbar select-none">
+    <div className="flex-1 min-h-[100dvh] bg-zinc-950 text-zinc-100 flex flex-col justify-between overflow-y-auto no-scrollbar select-none relative">
       {/* Top Navbar */}
-      <header className="p-4 bg-zinc-900/80 border-b border-zinc-800 sticky top-0 z-20 backdrop-blur-md flex flex-wrap justify-between items-center gap-2">
-        <div className="flex items-center gap-2">
+      <header className="p-4 bg-zinc-900/90 border-b border-zinc-800 sticky top-0 z-20 backdrop-blur-md flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-3">
           <span className="font-black text-xs sm:text-sm tracking-wider text-gold-400 flex items-center gap-1.5">
-            💈 PORTAL MEMBER & RESERVASI
+            💈 BARBERSHOP OS
           </span>
+
+          {/* Tab Switcher: Buat Reservasi vs Riwayat Pesanan */}
+          <div className="flex items-center bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+            <button
+              type="button"
+              onClick={() => setActiveTab('BOOKING')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeTab === 'BOOKING'
+                  ? 'bg-gold-500 text-zinc-950'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5" /> Reservasi
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!customerUser && onOpenAuth) {
+                  onOpenAuth('LOGIN');
+                  return;
+                }
+                setActiveTab('HISTORY');
+                fetchCustomerHistory();
+              }}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeTab === 'HISTORY'
+                  ? 'bg-gold-500 text-zinc-950'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              <History className="w-3.5 h-3.5" /> Riwayat ({bookingHistory.length})
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
-          <span className="text-[10px] text-zinc-400 font-mono hidden md:inline">
-            Cabang Makassar
-          </span>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <button
+            type="button"
+            onClick={() => setShowCSModal(true)}
+            className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-xs font-bold text-emerald-400 flex items-center gap-1.5"
+          >
+            <Headphones className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Customer Service</span>
+          </button>
 
           {customerUser ? (
             <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-800/90 border border-zinc-700 rounded-xl text-xs font-bold text-zinc-100">
-                <User className="w-3.5 h-3.5 text-gold-400" />
-                <span>{customerName || customerUser.name || customerUser.full_name}</span>
-              </div>
               <div className="flex items-center gap-1 px-2.5 py-1 bg-gold-500/10 border border-gold-500/30 rounded-xl text-xs font-mono font-bold text-gold-400">
                 <Award className="w-3.5 h-3.5 text-gold-400" />
-                <span>Poin Member: {loyaltyPoints} Pts</span>
+                <span>{loyaltyPoints} Pts</span>
               </div>
               {onLogout && (
                 <button
                   type="button"
                   onClick={onLogout}
-                  className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-red-400 border border-zinc-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
-                  title="Logout"
+                  className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-red-400 border border-zinc-700 rounded-xl text-xs font-bold flex items-center gap-1.5"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Logout</span>
@@ -757,20 +1077,20 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
             </div>
           ) : (
             onOpenAuth && (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => onOpenAuth('REGISTER')}
-                  className="text-xs sm:text-sm font-bold text-zinc-300 hover:text-white transition-colors"
+                  className="text-xs font-bold text-zinc-300 hover:text-white px-2"
                 >
-                  Daftar Akun
+                  Daftar
                 </button>
                 <button
                   type="button"
                   onClick={() => onOpenAuth('LOGIN')}
-                  className="bg-gold-500 hover:bg-gold-400 text-zinc-950 font-black text-xs px-4 py-1.5 rounded-full transition-all active:scale-95"
+                  className="bg-gold-500 hover:bg-gold-400 text-zinc-950 font-black text-xs px-4 py-1.5 rounded-full"
                 >
-                  Masuk / Login
+                  Login
                 </button>
               </div>
             )
@@ -778,8 +1098,8 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
         </div>
       </header>
 
-      {/* Konten Form */}
-      <main className="p-4 sm:p-6 max-w-xl mx-auto w-full space-y-5">
+      {/* KONTEN UTAMA */}
+      <main className="p-4 sm:p-6 max-w-2xl mx-auto w-full space-y-5">
         {expiredNotice && (
           <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-2xl text-xs text-red-300 flex items-center gap-2.5">
             <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
@@ -788,7 +1108,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
         )}
 
         {/* Kartu Profil Member */}
-        {customerUser ? (
+        {customerUser && (
           <div className="p-4 bg-zinc-900/90 border border-gold-500/30 rounded-2xl flex items-center justify-between gap-3 shadow-lg">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-2xl bg-gold-500/20 border border-gold-500/40 text-gold-400 flex items-center justify-center font-black text-sm shrink-0">
@@ -799,7 +1119,7 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <h3 className="text-xs sm:text-sm font-black text-zinc-100">
-                    {customerName || customerUser.name || customerUser.full_name}
+                    {customerName || customerUser.name}
                   </h3>
                   <span className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 text-gold-400 font-mono font-bold uppercase">
                     Member VIP
@@ -815,213 +1135,498 @@ export default function PublicBooking({ onBack, customerUser, onLogout, onOpenAu
               <div className="text-[9px] text-zinc-400 uppercase font-bold flex items-center justify-end gap-1">
                 <Award className="w-3 h-3 text-gold-400" /> Poin Member
               </div>
-              <div className="text-sm font-black text-gold-400 font-mono">
-                {loyaltyPoints} Pts
-              </div>
+              <div className="text-sm font-black text-gold-400 font-mono">{loyaltyPoints} Pts</div>
             </div>
-          </div>
-        ) : (
-          <div className="p-3.5 bg-zinc-900/80 border border-zinc-800 rounded-2xl flex items-center justify-between gap-3">
-            <div className="text-xs text-zinc-300">
-              <span className="font-bold text-gold-400">Info Pemesanan:</span> Pilih jadwal Anda terlebih dahulu. Saat menekan tombol pesan, Anda wajib login/membuat akun.
-            </div>
-            {onOpenAuth && (
-              <button
-                type="button"
-                onClick={() => onOpenAuth('LOGIN')}
-                className="shrink-0 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-gold-400 font-bold text-xs rounded-xl border border-zinc-700"
-              >
-                Login
-              </button>
-            )}
           </div>
         )}
 
-        <form onSubmit={handleSubmitBooking} className="space-y-5">
-          {/* Langkah 1: Pilih Layanan */}
-          <div className="space-y-2">
-            <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Scissors className="w-3.5 h-3.5 text-gold-400" /> 1. Pilih Treatment
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {services.map((srv) => (
-                <div
-                  key={srv.id}
-                  onClick={() => setSelectedServiceId(srv.id)}
-                  className={`p-3 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
-                    selectedServiceId === srv.id
-                      ? 'bg-gold-500/10 border-gold-500 shadow-md shadow-gold-500/10'
-                      : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
-                  }`}
+        {/* ==================== TAB 1: RIWAYAT PEMESANAN PELANGGAN ==================== */}
+        {activeTab === 'HISTORY' ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-black uppercase tracking-wider text-gold-400 flex items-center gap-2">
+                <History className="w-4 h-4" /> Riwayat Pemesanan & Transaksi Anda
+              </h2>
+              <button
+                type="button"
+                onClick={fetchCustomerHistory}
+                className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-bold flex items-center gap-1.5 text-zinc-300 hover:text-white"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </button>
+            </div>
+
+            {isLoadingHistory ? (
+              <div className="p-8 bg-zinc-900 border border-zinc-800 rounded-2xl text-center text-xs text-zinc-400 font-mono">
+                Memuat riwayat pesanan Anda...
+              </div>
+            ) : bookingHistory.length === 0 ? (
+              <div className="p-8 bg-zinc-900 border border-zinc-800 rounded-2xl text-center space-y-3">
+                <Calendar className="w-8 h-8 text-zinc-500 mx-auto" />
+                <div className="text-xs text-zinc-400">Belum ada riwayat pemesanan di akun Anda.</div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('BOOKING')}
+                  className="px-4 py-2 bg-gold-500 text-zinc-950 font-black text-xs rounded-xl"
                 >
-                  <div className="font-bold text-xs text-zinc-100">{srv.name}</div>
-                  <div className="mt-2 flex justify-between items-center text-[10px] font-mono">
-                    <span className="text-zinc-400">{srv.duration_minutes} Mnt</span>
-                    <span className="font-bold text-gold-400">
-                      Rp {Number(srv.base_price).toLocaleString('id-ID')}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  Buat Reservasi Pertama Anda
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {bookingHistory.map((item) => {
+                  const st = String(item.status || '').toUpperCase();
+                  const badgeStyle =
+                    st === 'CONFIRMED' || st === 'COMPLETED' || st === 'PAID'
+                      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                      : st === 'PENDING_PAYMENT'
+                      ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                      : 'bg-red-500/15 text-red-400 border-red-500/30';
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="p-4 bg-zinc-900 border border-zinc-800 rounded-2xl space-y-3"
+                    >
+                      <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
+                        <div>
+                          <span className="font-mono font-black text-xs text-gold-400">
+                            {item.booking_code}
+                          </span>
+                          <span className="text-[11px] text-zinc-400 block">
+                            {item.outlet_name}
+                          </span>
+                        </div>
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold border ${badgeStyle}`}>
+                          {st === 'CONFIRMED'
+                            ? 'AKTIF (LUNAS)'
+                            : st === 'COMPLETED'
+                            ? 'SELESAI DICUKUR'
+                            : st === 'PENDING_PAYMENT'
+                            ? 'MENUNGGU BAYAR'
+                            : 'HANGUS / BATAL'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-zinc-500 block text-[10px]">Item Layanan & Produk:</span>
+                          <span className="font-bold text-zinc-200">{item.items_summary}</span>
+                        </div>
+                        <div className="sm:text-right">
+                          <span className="text-zinc-500 block text-[10px]">Kapster & Waktu Kunjungan:</span>
+                          <span className="font-mono text-emerald-400 font-bold">
+                            {item.barber_name} • {String(item.booking_date).slice(0, 10)} ({String(item.start_time).slice(0, 5)})
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-zinc-800/80 text-xs">
+                        <span className="text-zinc-400 font-mono">
+                          Metode: {item.payment_method}
+                          {item.voucher_code ? ` • Voucher: ${item.voucher_code}` : ''}
+                        </span>
+                        <span className="font-mono font-black text-gold-400">
+                          Rp {Number(item.final_price || 0).toLocaleString('id-ID')}
+                        </span>
+                      </div>
+
+                      {st === 'PENDING_PAYMENT' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const expMs = item.expires_at
+                              ? new Date(item.expires_at).getTime() - Date.now()
+                              : 300000;
+                            setRemainingSeconds(Math.max(30, Math.floor(expMs / 1000)));
+                            setPendingBooking({
+                              bookingId: item.id,
+                              bookingCode: item.booking_code,
+                              outletName: item.outlet_name,
+                              date: String(item.booking_date).slice(0, 10),
+                              startTime: String(item.start_time).slice(0, 5),
+                              price: Number(item.subtotal_price || item.final_price || 0),
+                              customerName: customerName || 'Pelanggan',
+                              serviceName: item.items_summary,
+                              barberName: item.barber_name,
+                            });
+                          }}
+                          className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black text-xs rounded-xl"
+                        >
+                          LANJUTKAN PEMBAYARAN SEKARANG
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-
-          {/* Langkah 2: Pilih Kapster */}
-          <div className="space-y-2">
-            <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-gold-400" /> 2. Pilih Barber / Kapster
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {barbers.map((brb) => (
-                <div
-                  key={brb.id}
-                  onClick={() => setSelectedBarberId(brb.id)}
-                  className={`p-3 rounded-2xl border cursor-pointer transition-all text-center ${
-                    selectedBarberId === brb.id
-                      ? 'bg-gold-500/10 border-gold-500 shadow-md shadow-gold-500/10'
-                      : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
-                  }`}
-                >
-                  <div className="font-bold text-xs text-zinc-100">{brb.nickname}</div>
-                  <span className="text-[9px] font-mono text-zinc-400 bg-zinc-950 px-1.5 py-0.5 rounded mt-1 inline-block">
-                    {brb.level}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Langkah 3: Pilih Tanggal & Jam */}
-          <div className="space-y-2">
-            <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-gold-400" /> 3. Tanggal & Jam Kunjungan
-            </label>
-            <input
-              type="date"
-              required
-              value={selectedDate}
-              min={new Date().toISOString().split('T')[0]}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 focus:outline-none focus:border-gold-500 font-mono cursor-pointer"
-            />
-
-            <div className="space-y-1.5 pt-1">
-              <span className="text-[10px] text-zinc-400 font-bold block">PILIH JAM:</span>
-
-              {barberOffNotice ? (
-                <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-center space-y-1">
-                  <div className="text-amber-400 font-bold text-xs flex items-center justify-center gap-1.5">
-                    <AlertCircle className="w-4 h-4" /> Kapster Tidak Bertugas
-                  </div>
-                  <p className="text-[11px] text-zinc-200">{barberOffNotice}</p>
-                </div>
-              ) : isLoadingSlots ? (
-                <div className="p-4 bg-zinc-900 rounded-xl border border-zinc-800 text-center text-xs text-zinc-500 flex items-center justify-center gap-2 font-mono">
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-gold-400" /> Menghitung ketersediaan slot...
-                </div>
-              ) : availableSlots.length === 0 ? (
-                <div className="p-4 bg-zinc-900 rounded-xl border border-zinc-800 text-center text-xs text-zinc-500 font-mono">
-                  Tidak ada slot tersedia pada tanggal ini.
-                </div>
-              ) : (
-                <div className="relative rounded-2xl border border-zinc-800/90 bg-zinc-950 overflow-hidden">
-                  <div
-                    ref={slotRollRef}
-                    className="grid grid-cols-4 sm:grid-cols-6 gap-1.5 max-h-36 overflow-y-auto no-scrollbar overscroll-contain touch-pan-y snap-y snap-mandatory p-2"
-                  >
-                    {availableSlots.map((slot) => (
-                      <button
-                        key={slot.startTime}
-                        type="button"
-                        disabled={!slot.available}
-                        onClick={() => setSelectedSlot(slot.startTime)}
-                        className={`snap-start p-2 rounded-lg text-xs font-mono font-bold transition-all text-center ${
-                          !slot.available
-                            ? 'bg-zinc-900/40 text-zinc-600 border border-transparent cursor-not-allowed line-through'
-                            : selectedSlot === slot.startTime
-                            ? 'bg-gold-500 text-zinc-950 shadow-md shadow-gold-500/20'
-                            : 'bg-zinc-900 text-zinc-300 hover:border-zinc-700 border border-zinc-800'
-                        }`}
-                      >
-                        {slot.startTime}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Langkah 4: Data Kontak */}
-          {customerUser && (
+        ) : (
+          /* ==================== TAB 2: FORM RESERVASI LENGKAP ==================== */
+          <form onSubmit={handleSubmitBooking} className="space-y-5">
+            {/* Langkah 1: Pilih Lokasi Tempat / Cabang */}
             <div className="space-y-2">
               <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-gold-400" /> 4. Data Kontak & Preferensi
+                <MapPin className="w-3.5 h-3.5 text-gold-400" /> 1. Pilih Lokasi Cabang Barbershop
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div className="relative">
-                  <User className="w-4 h-4 text-zinc-500 absolute left-3 top-3" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="Nama Lengkap"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 pl-9 pr-3 text-xs text-zinc-100 focus:outline-none focus:border-gold-500"
-                  />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {OUTLET_BRANCHES.map((branch) => (
+                  <div
+                    key={branch.id}
+                    onClick={() => setSelectedOutlet(branch)}
+                    className={`p-3 rounded-2xl border cursor-pointer transition-all ${
+                      selectedOutlet.id === branch.id
+                        ? 'bg-gold-500/10 border-gold-500 shadow-md shadow-gold-500/10'
+                        : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="font-bold text-xs text-zinc-100">{branch.name}</div>
+                    <div className="text-[10px] text-zinc-400 mt-1 line-clamp-2">{branch.address}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Langkah 2: Pilih Layanan (Bisa Lebih dari 1 Layanan Sekaligus) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Scissors className="w-3.5 h-3.5 text-gold-400" /> 2. Pilih Layanan Treatment (Bisa Pilih &gt; 1)
+                </label>
+                <span className="text-[10px] font-mono text-gold-400">
+                  {selectedServiceIds.length} layanan dipilih ({totalDurationMinutes} Mnt)
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {services.map((srv) => {
+                  const isSelected = selectedServiceIds.includes(srv.id);
+                  return (
+                    <div
+                      key={srv.id}
+                      onClick={() => toggleServiceSelection(srv.id)}
+                      className={`p-3 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
+                        isSelected
+                          ? 'bg-gold-500/15 border-gold-500 shadow-md shadow-gold-500/10'
+                          : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-bold text-xs text-zinc-100">{srv.name}</span>
+                        <div
+                          className={`w-4 h-4 rounded-md flex items-center justify-center text-[10px] font-black ${
+                            isSelected ? 'bg-gold-500 text-zinc-950' : 'border border-zinc-700'
+                          }`}
+                        >
+                          {isSelected ? '✓' : ''}
+                        </div>
+                      </div>
+                      <div className="mt-2 flex justify-between items-center text-[10px] font-mono">
+                        <span className="text-zinc-400">{srv.duration_minutes} Mnt</span>
+                        <span className="font-bold text-gold-400">
+                          Rp {Number(srv.base_price).toLocaleString('id-ID')}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Langkah 3: Tambah Produk Ritel (Pomade / Grooming Products) */}
+            {products.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <ShoppingBag className="w-3.5 h-3.5 text-gold-400" /> 3. Tambah Produk Grooming / Ritel (Opsional)
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {products.map((prd) => {
+                    const qty = productCart[prd.id] || 0;
+                    return (
+                      <div
+                        key={prd.id}
+                        className={`p-3 rounded-2xl border flex items-center justify-between gap-2 ${
+                          qty > 0
+                            ? 'bg-gold-500/10 border-gold-500/50'
+                            : 'bg-zinc-900 border-zinc-800'
+                        }`}
+                      >
+                        <div>
+                          <div className="font-bold text-xs text-zinc-100">{prd.name}</div>
+                          <div className="text-[11px] font-mono text-gold-400 font-bold">
+                            Rp {Number(prd.selling_price).toLocaleString('id-ID')}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => updateProductQty(prd.id, -1)}
+                            className="w-7 h-7 rounded-lg bg-zinc-950 border border-zinc-700 hover:border-gold-500 flex items-center justify-center text-zinc-200"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="w-6 text-center font-mono text-xs font-bold text-zinc-100">
+                            {qty}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateProductQty(prd.id, 1)}
+                            className="w-7 h-7 rounded-lg bg-zinc-950 border border-zinc-700 hover:border-gold-500 flex items-center justify-center text-zinc-200"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="relative">
-                  <Phone className="w-4 h-4 text-zinc-500 absolute left-3 top-3" />
-                  <input
-                    type="tel"
-                    required
-                    placeholder="No. WhatsApp (08xx)"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 pl-9 pr-3 text-xs text-zinc-100 font-mono focus:outline-none focus:border-gold-500"
-                  />
+              </div>
+            )}
+
+            {/* Langkah 4: Pilih Kapster */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-gold-400" /> 4. Pilih Barber / Kapster
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {barbers.map((brb) => (
+                  <div
+                    key={brb.id}
+                    onClick={() => setSelectedBarberId(brb.id)}
+                    className={`p-3 rounded-2xl border cursor-pointer transition-all text-center ${
+                      selectedBarberId === brb.id
+                        ? 'bg-gold-500/10 border-gold-500 shadow-md shadow-gold-500/10'
+                        : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="font-bold text-xs text-zinc-100">{brb.nickname}</div>
+                    <span className="text-[9px] font-mono text-zinc-400 bg-zinc-950 px-1.5 py-0.5 rounded mt-1 inline-block">
+                      {brb.level}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Langkah 5: Pilih Tanggal & Jam */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-gold-400" /> 5. Tanggal & Jam Kunjungan
+              </label>
+              <input
+                type="date"
+                required
+                value={selectedDate}
+                min={new Date().toISOString().split('T')[0]}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 focus:outline-none focus:border-gold-500 font-mono cursor-pointer"
+              />
+
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[10px] text-zinc-400 font-bold block">PILIH JAM:</span>
+
+                {barberOffNotice ? (
+                  <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-center space-y-1">
+                    <div className="text-amber-400 font-bold text-xs flex items-center justify-center gap-1.5">
+                      <AlertCircle className="w-4 h-4" /> Kapster Tidak Bertugas
+                    </div>
+                    <p className="text-[11px] text-zinc-200">{barberOffNotice}</p>
+                  </div>
+                ) : isLoadingSlots ? (
+                  <div className="p-4 bg-zinc-900 rounded-xl border border-zinc-800 text-center text-xs text-zinc-500 flex items-center justify-center gap-2 font-mono">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-gold-400" /> Menghitung ketersediaan slot...
+                  </div>
+                ) : availableSlots.length === 0 ? (
+                  <div className="p-4 bg-zinc-900 rounded-xl border border-zinc-800 text-center text-xs text-zinc-500 font-mono">
+                    Tidak ada slot tersedia pada tanggal ini.
+                  </div>
+                ) : (
+                  <div className="relative rounded-2xl border border-zinc-800/90 bg-zinc-950 overflow-hidden">
+                    <div
+                      ref={slotRollRef}
+                      className="grid grid-cols-4 sm:grid-cols-6 gap-1.5 max-h-36 overflow-y-auto no-scrollbar p-2"
+                    >
+                      {availableSlots.map((slot) => (
+                        <button
+                          key={slot.startTime}
+                          type="button"
+                          disabled={!slot.available}
+                          onClick={() => setSelectedSlot(slot.startTime)}
+                          className={`p-2 rounded-lg text-xs font-mono font-bold transition-all text-center ${
+                            !slot.available
+                              ? 'bg-zinc-900/40 text-zinc-600 cursor-not-allowed line-through'
+                              : selectedSlot === slot.startTime
+                              ? 'bg-gold-500 text-zinc-950 shadow-md shadow-gold-500/20'
+                              : 'bg-zinc-900 text-zinc-300 hover:border-zinc-700 border border-zinc-800'
+                          }`}
+                        >
+                          {slot.startTime}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Langkah 6: Data Kontak & Catatan Model Rambut */}
+            {customerUser && (
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-gold-400" /> 6. Data Kontak & Barber Notes
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="relative">
+                    <User className="w-4 h-4 text-zinc-500 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="Nama Lengkap"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 pl-9 pr-3 text-xs text-zinc-100 focus:outline-none focus:border-gold-500"
+                    />
+                  </div>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-zinc-500 absolute left-3 top-3" />
+                    <input
+                      type="tel"
+                      required
+                      placeholder="No. WhatsApp (08xx)"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 pl-9 pr-3 text-xs text-zinc-100 font-mono focus:outline-none focus:border-gold-500"
+                    />
+                  </div>
+                </div>
+
+                <textarea
+                  rows={2}
+                  placeholder="Catatan preferensi gaya rambut (contoh: Low taper fade, atas dirapikan 1-2 cm)..."
+                  value={haircutNotes}
+                  onChange={(e) => setHaircutNotes(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 focus:outline-none focus:border-gold-500 resize-none"
+                />
+              </div>
+            )}
+
+            {/* Ringkasan Keranjang Booking & Tombol Submit */}
+            <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-2xl space-y-3">
+              <div className="space-y-1 text-xs font-mono">
+                <div className="flex justify-between text-zinc-400">
+                  <span className="font-sans">Lokasi Cabang</span>
+                  <span className="text-zinc-200">{selectedOutlet.name}</span>
+                </div>
+                <div className="flex justify-between text-zinc-400">
+                  <span className="font-sans">Total Layanan ({selectedServicesList.length} item)</span>
+                  <span>Rp {totalServicePrice.toLocaleString('id-ID')}</span>
+                </div>
+                {selectedProductsList.length > 0 && (
+                  <div className="flex justify-between text-zinc-400">
+                    <span className="font-sans">Produk Ritel ({selectedProductsList.length} item)</span>
+                    <span>Rp {totalProductPrice.toLocaleString('id-ID')}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center text-sm pt-2 border-t border-zinc-800">
+                  <span className="text-zinc-200 font-sans font-bold">Estimasi Total Biaya</span>
+                  <span className="font-mono font-black text-gold-400">
+                    Rp {estimatedSubtotal.toLocaleString('id-ID')}
+                  </span>
                 </div>
               </div>
 
-              <textarea
-                rows={2}
-                placeholder="Catatan preferensi gaya rambut (contoh: Low taper fade, atas dirapikan 1-2 cm)..."
-                value={haircutNotes}
-                onChange={(e) => setHaircutNotes(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 focus:outline-none focus:border-gold-500 resize-none"
-              />
+              <button
+                type="submit"
+                disabled={isSubmitting || !selectedSlot || !!barberOffNotice}
+                className="w-full py-3.5 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-zinc-950 font-black text-xs rounded-xl shadow-lg shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : !customerUser ? (
+                  <>
+                    <Lock className="w-4 h-4" /> LOGIN / DAFTAR AKUN UNTUK MEMESAN
+                  </>
+                ) : (
+                  'LANJUT KE PEMBAYARAN & VOUCHER (KUNCI SLOT 10 MENIT)'
+                )}
+              </button>
             </div>
-          )}
-
-          {/* Ringkasan Biaya & Tombol Submit */}
-          <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-2xl space-y-3">
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-zinc-400">Estimasi Total Biaya (Wajib Bayar &le; 10 Menit)</span>
-              <span className="font-mono font-black text-sm text-gold-400">
-                Rp {Number(activeService?.base_price || 0).toLocaleString('id-ID')}
-              </span>
-            </div>
-            <button
-              type="submit"
-              disabled={isSubmitting || !selectedSlot || !!barberOffNotice}
-              className="w-full py-3.5 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-zinc-950 font-black text-xs rounded-xl shadow-lg shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-            >
-              {isSubmitting ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : !customerUser ? (
-                <>
-                  <Lock className="w-4 h-4" /> LOGIN / DAFTAR AKUN UNTUK MEMESAN
-                </>
-              ) : (
-                'PESAN & LANJUT KE PEMBAYARAN (KUNCI SLOT 10 MENIT)'
-              )}
-            </button>
-          </div>
-        </form>
+          </form>
+        )}
       </main>
 
+      {/* MODAL CUSTOMER SERVICE (BANTUAN PELANGGAN) */}
+      {showCSModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-3xl p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Headphones className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-sm font-black text-zinc-100">Pusat Bantuan & Customer Service</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCSModal(false)}
+                className="text-xs text-zinc-400 hover:text-white"
+              >
+                ✕ Tutup
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-400">
+              Pilih topik bantuan di bawah ini untuk terhubung langsung dengan Admin CS{' '}
+              <b className="text-zinc-200">{selectedOutlet.name}</b> melalui WhatsApp:
+            </p>
+
+            <div className="space-y-2">
+              {[
+                {
+                  title: 'Konfirmasi & Kendala Pembayaran QRIS / VA',
+                  msg: `Halo CS Barbershop OS (${selectedOutlet.name}), saya butuh bantuan terkait pembayaran reservasi saya.`,
+                },
+                {
+                  title: 'Ubah Jadwal Kunjungan (Reschedule Booking)',
+                  msg: `Halo CS Barbershop OS (${selectedOutlet.name}), saya ingin mengubah jadwal kunjungan (reschedule) booking saya.`,
+                },
+                {
+                  title: 'Konsultasi Gaya Rambut & Produk Grooming',
+                  msg: `Halo CS Barbershop OS (${selectedOutlet.name}), saya ingin berkonsultasi mengenai layanan treatment dan produk rambut.`,
+                },
+                {
+                  title: 'Keluhan Layanan / Saran Pelanggan',
+                  msg: `Halo CS Barbershop OS (${selectedOutlet.name}), saya ingin menyampaikan masukan terkait layanan barbershop.`,
+                },
+              ].map((topic, idx) => (
+                <a
+                  key={idx}
+                  href={`https://wa.me/${selectedOutlet.csPhone}?text=${encodeURIComponent(topic.msg)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="p-3 bg-zinc-950 hover:bg-zinc-800/80 border border-zinc-800 hover:border-emerald-500/40 rounded-xl flex items-center justify-between text-xs font-bold text-zinc-200 transition-all"
+                >
+                  <span>{topic.title}</span>
+                  <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Button CS WhatsApp di Pojok Kanan Bawah */}
+      <button
+        type="button"
+        onClick={() => setShowCSModal(true)}
+        className="fixed bottom-5 right-5 z-30 p-3.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-full shadow-xl shadow-emerald-500/20 flex items-center gap-2 font-black text-xs transition-all active:scale-95"
+      >
+        <MessageCircle className="w-5 h-5" />
+        <span className="hidden sm:inline">Butuh Bantuan CS?</span>
+      </button>
+
       <footer className="p-4 text-center text-[10px] text-zinc-600 border-t border-zinc-900">
-        Barbershop OS • Slot Booking Dilindungi Sistem Lock 10 Menit
+        Barbershop OS • Multi-Outlet Reservation, Retail Add-Ons, Voucher, & 10-Minute Slot Lock
       </footer>
     </div>
   );
