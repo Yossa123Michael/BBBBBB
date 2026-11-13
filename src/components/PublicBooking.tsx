@@ -33,7 +33,7 @@ interface Service {
   id: string;
   name: string;
   base_price: number;
-  duration_minutes: number;
+  duration_minutes?: number;
   description?: string;
 }
 
@@ -306,7 +306,7 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
   const toggleServiceSelection = (id: string) => {
     setSelectedServiceIds((prev) => {
       if (prev.includes(id)) {
-        if (prev.length === 1) return prev; // Minimal 1 layanan terpilih
+        if (prev.length === 1) return prev;
         return prev.filter((item) => item !== id);
       }
       return [...prev, id];
@@ -663,20 +663,23 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
     )}`;
 
     return (
-      <div className="flex-1 min-h-[100dvh] bg-zinc-950 flex items-center justify-center p-4 text-zinc-100 select-none overflow-y-auto">
-        <div className="w-full max-w-lg bg-zinc-900 border border-gold-500/40 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl my-4">
+      <div
+        className="flex-1 min-h-[100dvh] bg-zinc-950 flex items-center justify-center p-4 text-zinc-100 select-none overflow-y-auto"
+        style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}
+      >
+        <div className="w-full max-w-lg bg-zinc-900 border border-gold-500/40 rounded-3xl p-4 sm:p-6 space-y-4 shadow-2xl my-4 overflow-hidden">
           {/* Header & Countdown Timer */}
-          <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+          <div className="flex items-center justify-between gap-2 border-b border-zinc-800 pb-4">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
                 <Clock className="w-5 h-5 animate-pulse" />
               </div>
-              <div>
-                <h2 className="text-sm font-black text-zinc-100">Selesaikan Pembayaran</h2>
-                <p className="text-[11px] text-zinc-400">Slot kapster sedang dikunci untuk Anda</p>
+              <div className="min-w-0">
+                <h2 className="text-sm font-black text-zinc-100 truncate">Selesaikan Pembayaran</h2>
+                <p className="text-[11px] text-zinc-400 truncate">Slot kapster sedang dikunci untuk Anda</p>
               </div>
             </div>
-            <div className="text-right bg-red-500/10 border border-red-500/30 px-3 py-1.5 rounded-xl">
+            <div className="text-right bg-red-500/10 border border-red-500/30 px-3 py-1.5 rounded-xl shrink-0">
               <div className="text-[9px] text-red-300 uppercase font-bold">Sisa Waktu</div>
               <div className="text-base font-mono font-black text-red-400">
                 {formatCountdown(remainingSeconds)}
@@ -685,20 +688,20 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
           </div>
 
           {/* Rincian Pesanan & Diskon */}
-          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-4 font-mono text-xs space-y-2">
-            <div className="flex justify-between">
-              <span className="text-zinc-500 font-sans">Kode & Lokasi</span>
-              <span className="text-gold-400 font-bold text-right">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-3.5 font-mono text-xs space-y-2">
+            <div className="flex justify-between gap-2">
+              <span className="text-zinc-500 font-sans shrink-0">Kode & Lokasi</span>
+              <span className="text-gold-400 font-bold text-right truncate">
                 {pendingBooking.bookingCode} • {pendingBooking.outletName}
               </span>
             </div>
-            <div className="flex justify-between gap-4">
+            <div className="flex justify-between gap-3">
               <span className="text-zinc-500 font-sans shrink-0">Item Pesanan</span>
               <span className="text-zinc-200 text-right">{pendingBooking.serviceName}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-500 font-sans">Kapster & Jadwal</span>
-              <span className="text-emerald-400 font-bold">
+            <div className="flex justify-between gap-2">
+              <span className="text-zinc-500 font-sans shrink-0">Kapster & Jadwal</span>
+              <span className="text-emerald-400 font-bold text-right">
                 {pendingBooking.barberName} • {pendingBooking.date} ({pendingBooking.startTime} WITA)
               </span>
             </div>
@@ -740,7 +743,7 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
                 placeholder="Contoh: HEMAT20K atau DISKON10"
                 value={voucherInput}
                 onChange={(e) => setVoucherInput(e.target.value.toUpperCase())}
-                className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs font-mono text-zinc-100 uppercase focus:outline-none focus:border-gold-500"
+                className="flex-1 min-w-0 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs font-mono text-zinc-100 uppercase focus:outline-none focus:border-gold-500"
               />
               {appliedVoucher ? (
                 <button
@@ -750,7 +753,7 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
                     setVoucherInput('');
                     setVoucherMsg(null);
                   }}
-                  className="px-3 py-2 bg-red-500/20 text-red-300 border border-red-500/30 rounded-xl text-xs font-bold"
+                  className="px-3 py-2 bg-red-500/20 text-red-300 border border-red-500/30 rounded-xl text-xs font-bold shrink-0"
                 >
                   Hapus
                 </button>
@@ -759,7 +762,7 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
                   type="button"
                   disabled={isCheckingVoucher || !voucherInput.trim()}
                   onClick={handleValidateVoucher}
-                  className="px-4 py-2 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-zinc-950 rounded-xl text-xs font-black"
+                  className="px-4 py-2 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-zinc-950 rounded-xl text-xs font-black shrink-0"
                 >
                   {isCheckingVoucher ? '...' : 'Pakai'}
                 </button>
@@ -774,12 +777,12 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
 
           {/* TUKAR POIN MEMBER */}
           <div className="p-3.5 bg-zinc-950 border border-gold-500/30 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Gift className="w-4 h-4 text-gold-400" />
-                <div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Gift className="w-4 h-4 text-gold-400 shrink-0" />
+                <div className="min-w-0">
                   <div className="text-xs font-bold text-zinc-100">Tukar Poin Member</div>
-                  <div className="text-[10px] text-zinc-400 font-mono">
+                  <div className="text-[10px] text-zinc-400 font-mono truncate">
                     Saldo: <span className="text-gold-400 font-bold">{loyaltyPoints} Pts</span> (1 Pts = Rp 1.000)
                   </div>
                 </div>
@@ -790,12 +793,12 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
                   onClick={() =>
                     setPointsToRedeem(appliedPoints === maxRedeemablePoints ? 0 : maxRedeemablePoints)
                   }
-                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono bg-zinc-900 text-gold-400 border border-gold-500/40"
+                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono bg-zinc-900 text-gold-400 border border-gold-500/40 shrink-0"
                 >
                   {appliedPoints === maxRedeemablePoints ? 'Reset Poin' : 'Pakai Semua'}
                 </button>
               ) : (
-                <span className="text-[10px] text-zinc-500 font-mono">Saldo 0 Pts</span>
+                <span className="text-[10px] text-zinc-500 font-mono shrink-0">Saldo 0 Pts</span>
               )}
             </div>
             {maxRedeemablePoints > 0 && (
@@ -848,14 +851,14 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
 
             {activeChannel.type === 'QR' ? (
               <div className="p-4 bg-white text-zinc-950 rounded-2xl text-center space-y-2 shadow-inner">
-                <div className="flex items-center justify-between border-b border-zinc-200 pb-2 text-xs font-black">
-                  <span>QRIS STANDAR PEMBAYARAN NASIONAL</span>
+                <div className="flex items-center justify-between border-b border-zinc-200 pb-2 text-[10px] sm:text-xs font-black">
+                  <span>QRIS PEMBAYARAN NASIONAL</span>
                   <span className="text-emerald-700 font-mono">NMID: ID1026008812</span>
                 </div>
                 <img
                   src={qrisImageUrl}
                   alt="QRIS Barbershop OS"
-                  className="w-48 h-48 mx-auto rounded-lg border border-zinc-200 p-1"
+                  className="w-44 h-44 mx-auto rounded-lg border border-zinc-200 p-1"
                 />
                 <div className="text-xs font-bold text-zinc-800">
                   BARBERSHOP OS • Rp {finalBillRp.toLocaleString('id-ID')}
@@ -866,16 +869,16 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
               </div>
             ) : (
               <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-zinc-300">{activeChannel.bankName}</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 bg-gold-500/10 text-gold-400 rounded">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-zinc-300 truncate">{activeChannel.bankName}</span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 bg-gold-500/10 text-gold-400 rounded shrink-0">
                     Dicek Otomatis
                   </span>
                 </div>
-                <div className="p-3 bg-zinc-900 border border-zinc-700 rounded-xl flex items-center justify-between">
-                  <div>
+                <div className="p-3 bg-zinc-900 border border-zinc-700 rounded-xl flex items-center justify-between gap-2">
+                  <div className="min-w-0">
                     <div className="text-[10px] text-zinc-400">Nomor Virtual Account:</div>
-                    <div className="text-base font-mono font-black text-gold-400 tracking-wider">
+                    <div className="text-sm sm:text-base font-mono font-black text-gold-400 tracking-wider truncate">
                       {virtualAccountNumber}
                     </div>
                   </div>
@@ -886,7 +889,7 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
                       setCopiedVA(true);
                       setTimeout(() => setCopiedVA(false), 2000);
                     }}
-                    className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-xs font-bold rounded-lg flex items-center gap-1.5 text-zinc-200"
+                    className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-xs font-bold rounded-lg flex items-center gap-1.5 text-zinc-200 shrink-0"
                   >
                     {copiedVA ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     <span>{copiedVA ? 'Tersalin' : 'Salin VA'}</span>
@@ -932,7 +935,10 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
   // ==================== LAYAR E-TICKET SUKSES ====================
   if (bookingSuccessData) {
     return (
-      <div className="flex-1 min-h-[100dvh] bg-zinc-950 flex items-center justify-center p-4 text-zinc-100 select-none">
+      <div
+        className="flex-1 min-h-[100dvh] bg-zinc-950 flex items-center justify-center p-4 text-zinc-100 select-none"
+        style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}
+      >
         <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-3xl p-6 space-y-5 text-center shadow-2xl">
           <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400 mx-auto">
             <CheckCircle2 className="w-8 h-8" />
@@ -950,17 +956,17 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
               <span className="text-zinc-500 font-sans">Kode Booking</span>
               <span className="text-gold-400 font-bold">{bookingSuccessData.bookingCode}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-500 font-sans">Lokasi Cabang</span>
+            <div className="flex justify-between gap-2">
+              <span className="text-zinc-500 font-sans shrink-0">Lokasi Cabang</span>
               <span className="text-zinc-200 text-right">{bookingSuccessData.outletName}</span>
             </div>
             <div className="flex justify-between gap-4">
               <span className="text-zinc-500 font-sans shrink-0">Pesanan</span>
               <span className="text-zinc-200 text-right">{bookingSuccessData.serviceName}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-500 font-sans">Kapster & Jadwal</span>
-              <span className="text-emerald-400 font-bold">
+            <div className="flex justify-between gap-2">
+              <span className="text-zinc-500 font-sans shrink-0">Kapster & Jadwal</span>
+              <span className="text-emerald-400 font-bold text-right">
                 {bookingSuccessData.barberName} • {bookingSuccessData.date} ({bookingSuccessData.startTime})
               </span>
             </div>
@@ -1004,102 +1010,112 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
     );
   }
 
-  // ==================== TAMPILAN UTAMA PORTAL PELANGGAN ====================
+  // ==================== TAMPILAN UTAMA PORTAL PELANGGAN (RESPONSIF IPHONE & ANDROID) ====================
   return (
-    <div className="flex-1 min-h-[100dvh] bg-zinc-950 text-zinc-100 flex flex-col justify-between overflow-y-auto no-scrollbar select-none relative">
-      {/* Top Navbar */}
-      <header className="p-4 bg-zinc-900/90 border-b border-zinc-800 sticky top-0 z-20 backdrop-blur-md flex flex-wrap justify-between items-center gap-2">
-        <div className="flex items-center gap-3">
-          <span className="font-black text-xs sm:text-sm tracking-wider text-gold-400 flex items-center gap-1.5">
-            💈 BARBERSHOP OS
-          </span>
+    <div className="flex-1 min-h-[100dvh] w-full max-w-[100vw] bg-zinc-950 text-zinc-100 flex flex-col justify-between overflow-x-hidden overflow-y-auto no-scrollbar select-none relative">
+      {/* Top Navbar dengan Safe Area iPhone & Tata Letak 2 Baris */}
+      <header
+        className="px-3.5 pb-3 bg-zinc-900/95 border-b border-zinc-800 sticky top-0 z-20 backdrop-blur-md space-y-2.5"
+        style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+      >
+        {/* Baris 1: Brand Logo di Kiri & Tombol Aksi di Kanan */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-base shrink-0">💈</span>
+            <span className="font-black text-xs sm:text-sm tracking-wider text-gold-400 truncate">
+              BARBERSHOP OS
+            </span>
+          </div>
 
-          {/* Tab Switcher: Buat Reservasi vs Riwayat Pesanan */}
-          <div className="flex items-center bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
-              onClick={() => setActiveTab('BOOKING')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === 'BOOKING'
-                  ? 'bg-gold-500 text-zinc-950'
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
+              onClick={() => setShowCSModal(true)}
+              className="px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-[11px] font-bold text-emerald-400 flex items-center gap-1"
+              title="Customer Service"
             >
-              <Calendar className="w-3.5 h-3.5" /> Reservasi
+              <Headphones className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">CS Bantuan</span>
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!customerUser && onOpenAuth) {
-                  onOpenAuth('LOGIN');
-                  return;
-                }
-                setActiveTab('HISTORY');
-                fetchCustomerHistory();
-              }}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === 'HISTORY'
-                  ? 'bg-gold-500 text-zinc-950'
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-            >
-              <History className="w-3.5 h-3.5" /> Riwayat ({bookingHistory.length})
-            </button>
+
+            {customerUser ? (
+              <>
+                <div className="flex items-center gap-1 px-2.5 py-1.5 bg-gold-500/10 border border-gold-500/30 rounded-xl text-[11px] font-mono font-bold text-gold-400">
+                  <Award className="w-3.5 h-3.5 text-gold-400 shrink-0" />
+                  <span>{loyaltyPoints} Pts</span>
+                </div>
+                {onLogout && (
+                  <button
+                    type="button"
+                    onClick={onLogout}
+                    className="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-red-400 border border-zinc-700 rounded-xl text-[11px] font-bold flex items-center gap-1"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Logout</span>
+                  </button>
+                )}
+              </>
+            ) : (
+              onOpenAuth && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onOpenAuth('REGISTER')}
+                    className="text-[11px] font-bold text-zinc-300 hover:text-white px-2 py-1"
+                  >
+                    Daftar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenAuth('LOGIN')}
+                    className="bg-gold-500 hover:bg-gold-400 text-zinc-950 font-black text-[11px] px-3.5 py-1.5 rounded-full"
+                  >
+                    Login
+                  </button>
+                </div>
+              )
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap justify-end">
+        {/* Baris 2: Segmented Tab Switcher Penuh (Tidak Akan Terpotong di Layar iPhone) */}
+        <div className="grid grid-cols-2 gap-1.5 bg-zinc-950 p-1 rounded-xl border border-zinc-800 w-full">
           <button
             type="button"
-            onClick={() => setShowCSModal(true)}
-            className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-xs font-bold text-emerald-400 flex items-center gap-1.5"
+            onClick={() => setActiveTab('BOOKING')}
+            className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              activeTab === 'BOOKING'
+                ? 'bg-gold-500 text-zinc-950 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
           >
-            <Headphones className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Customer Service</span>
+            <Calendar className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Reservasi</span>
           </button>
-
-          {customerUser ? (
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1 px-2.5 py-1 bg-gold-500/10 border border-gold-500/30 rounded-xl text-xs font-mono font-bold text-gold-400">
-                <Award className="w-3.5 h-3.5 text-gold-400" />
-                <span>{loyaltyPoints} Pts</span>
-              </div>
-              {onLogout && (
-                <button
-                  type="button"
-                  onClick={onLogout}
-                  className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-red-400 border border-zinc-700 rounded-xl text-xs font-bold flex items-center gap-1.5"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Logout</span>
-                </button>
-              )}
-            </div>
-          ) : (
-            onOpenAuth && (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => onOpenAuth('REGISTER')}
-                  className="text-xs font-bold text-zinc-300 hover:text-white px-2"
-                >
-                  Daftar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onOpenAuth('LOGIN')}
-                  className="bg-gold-500 hover:bg-gold-400 text-zinc-950 font-black text-xs px-4 py-1.5 rounded-full"
-                >
-                  Login
-                </button>
-              </div>
-            )
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (!customerUser && onOpenAuth) {
+                onOpenAuth('LOGIN');
+                return;
+              }
+              setActiveTab('HISTORY');
+              fetchCustomerHistory();
+            }}
+            className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              activeTab === 'HISTORY'
+                ? 'bg-gold-500 text-zinc-950 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <History className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Riwayat ({bookingHistory.length})</span>
+          </button>
         </div>
       </header>
 
-      {/* KONTEN UTAMA */}
-      <main className="p-4 sm:p-6 max-w-2xl mx-auto w-full space-y-5">
+      {/* KONTEN UTAMA (pb-24 agar tidak tertutup tombol mengambang CS) */}
+      <main className="p-3.5 sm:p-6 pb-24 max-w-2xl mx-auto w-full space-y-5">
         {expiredNotice && (
           <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-2xl text-xs text-red-300 flex items-center gap-2.5">
             <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
@@ -1107,35 +1123,38 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
           </div>
         )}
 
-        {/* Kartu Profil Member */}
+        {/* Kartu Profil Member (Anti-Overflow di Layar iPhone 375px) */}
         {customerUser && (
-          <div className="p-4 bg-zinc-900/90 border border-gold-500/30 rounded-2xl flex items-center justify-between gap-3 shadow-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-gold-500/20 border border-gold-500/40 text-gold-400 flex items-center justify-center font-black text-sm shrink-0">
+          <div className="p-3.5 sm:p-4 bg-zinc-900/90 border border-gold-500/30 rounded-2xl flex items-center justify-between gap-2.5 shadow-lg overflow-hidden w-full">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gold-500/20 border border-gold-500/40 text-gold-400 flex items-center justify-center font-black text-xs sm:text-sm shrink-0">
                 {String(customerName || customerUser.name || 'MB')
                   .slice(0, 2)
                   .toUpperCase()}
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <h3 className="text-xs sm:text-sm font-black text-zinc-100">
+                  <h3 className="text-xs sm:text-sm font-black text-zinc-100 truncate">
                     {customerName || customerUser.name}
                   </h3>
-                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 text-gold-400 font-mono font-bold uppercase">
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 text-gold-400 font-mono font-bold uppercase shrink-0">
                     Member VIP
                   </span>
                 </div>
-                <p className="text-[11px] text-zinc-400 font-mono">
+                <p className="text-[11px] text-zinc-400 font-mono truncate">
                   {customerPhone || customerUser.phone || customerUser.email}
                 </p>
               </div>
             </div>
 
-            <div className="text-right bg-zinc-950 px-3 py-2 rounded-xl border border-zinc-800 shrink-0">
-              <div className="text-[9px] text-zinc-400 uppercase font-bold flex items-center justify-end gap-1">
-                <Award className="w-3 h-3 text-gold-400" /> Poin Member
+            <div className="text-right bg-zinc-950 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl border border-zinc-800 shrink-0">
+              <div className="text-[8px] sm:text-[9px] text-zinc-400 uppercase font-bold flex items-center justify-end gap-1">
+                <Award className="w-3 h-3 text-gold-400 shrink-0" />
+                <span>Poin Member</span>
               </div>
-              <div className="text-sm font-black text-gold-400 font-mono">{loyaltyPoints} Pts</div>
+              <div className="text-xs sm:text-sm font-black text-gold-400 font-mono">
+                {loyaltyPoints} Pts
+              </div>
             </div>
           </div>
         )}
@@ -1143,14 +1162,14 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
         {/* ==================== TAB 1: RIWAYAT PEMESANAN PELANGGAN ==================== */}
         {activeTab === 'HISTORY' ? (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-black uppercase tracking-wider text-gold-400 flex items-center gap-2">
-                <History className="w-4 h-4" /> Riwayat Pemesanan & Transaksi Anda
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-gold-400 flex items-center gap-1.5">
+                <History className="w-4 h-4 shrink-0" /> Riwayat Pemesanan Anda
               </h2>
               <button
                 type="button"
                 onClick={fetchCustomerHistory}
-                className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-bold flex items-center gap-1.5 text-zinc-300 hover:text-white"
+                className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-bold flex items-center gap-1.5 text-zinc-300 hover:text-white shrink-0"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isLoadingHistory ? 'animate-spin' : ''}`} />
                 <span>Refresh</span>
@@ -1189,16 +1208,16 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
                       key={item.id}
                       className="p-4 bg-zinc-900 border border-zinc-800 rounded-2xl space-y-3"
                     >
-                      <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
-                        <div>
-                          <span className="font-mono font-black text-xs text-gold-400">
+                      <div className="flex items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
+                        <div className="min-w-0">
+                          <span className="font-mono font-black text-xs text-gold-400 block">
                             {item.booking_code}
                           </span>
-                          <span className="text-[11px] text-zinc-400 block">
+                          <span className="text-[11px] text-zinc-400 block truncate">
                             {item.outlet_name}
                           </span>
                         </div>
-                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold border ${badgeStyle}`}>
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold border shrink-0 ${badgeStyle}`}>
                           {st === 'CONFIRMED'
                             ? 'AKTIF (LUNAS)'
                             : st === 'COMPLETED'
@@ -1269,7 +1288,8 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
             {/* Langkah 1: Pilih Lokasi Tempat / Cabang */}
             <div className="space-y-2">
               <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-gold-400" /> 1. Pilih Lokasi Cabang Barbershop
+                <MapPin className="w-3.5 h-3.5 text-gold-400 shrink-0" />
+                <span>1. Pilih Lokasi Cabang Barbershop</span>
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {OUTLET_BRANCHES.map((branch) => (
@@ -1289,14 +1309,15 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
               </div>
             </div>
 
-            {/* Langkah 2: Pilih Layanan (Bisa Lebih dari 1 Layanan Sekaligus) */}
+            {/* Langkah 2: Pilih Layanan (Flex-Wrap Agar Tidak Menghimpit di iPhone) */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-1.5">
                 <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Scissors className="w-3.5 h-3.5 text-gold-400" /> 2. Pilih Layanan Treatment (Bisa Pilih &gt; 1)
+                  <Scissors className="w-3.5 h-3.5 text-gold-400 shrink-0" />
+                  <span>2. Pilih Layanan (Bisa Pilih &gt; 1)</span>
                 </label>
-                <span className="text-[10px] font-mono text-gold-400">
-                  {selectedServiceIds.length} layanan dipilih ({totalDurationMinutes} Mnt)
+                <span className="text-[10px] font-mono text-gold-400 bg-gold-500/10 border border-gold-500/20 px-2 py-0.5 rounded-lg">
+                  {selectedServiceIds.length} layanan • {totalDurationMinutes} Mnt
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -1306,7 +1327,7 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
                     <div
                       key={srv.id}
                       onClick={() => toggleServiceSelection(srv.id)}
-                      className={`p-3 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
+                      className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
                         isSelected
                           ? 'bg-gold-500/15 border-gold-500 shadow-md shadow-gold-500/10'
                           : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
@@ -1315,15 +1336,17 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
                       <div className="flex items-start justify-between gap-2">
                         <span className="font-bold text-xs text-zinc-100">{srv.name}</span>
                         <div
-                          className={`w-4 h-4 rounded-md flex items-center justify-center text-[10px] font-black ${
+                          className={`w-4 h-4 rounded-md flex items-center justify-center text-[10px] font-black shrink-0 ${
                             isSelected ? 'bg-gold-500 text-zinc-950' : 'border border-zinc-700'
                           }`}
                         >
                           {isSelected ? '✓' : ''}
                         </div>
                       </div>
-                      <div className="mt-2 flex justify-between items-center text-[10px] font-mono">
-                        <span className="text-zinc-400">{srv.duration_minutes} Mnt</span>
+                      <div className="mt-2.5 flex justify-between items-center text-[11px] font-mono">
+                        <span className="text-zinc-400">
+                          {Number(srv.duration_minutes || 45)} Mnt
+                        </span>
                         <span className="font-bold text-gold-400">
                           Rp {Number(srv.base_price).toLocaleString('id-ID')}
                         </span>
@@ -1334,11 +1357,12 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
               </div>
             </div>
 
-            {/* Langkah 3: Tambah Produk Ritel (Pomade / Grooming Products) */}
+            {/* Langkah 3: Tambah Produk Ritel */}
             {products.length > 0 && (
               <div className="space-y-2">
                 <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <ShoppingBag className="w-3.5 h-3.5 text-gold-400" /> 3. Tambah Produk Grooming / Ritel (Opsional)
+                  <ShoppingBag className="w-3.5 h-3.5 text-gold-400 shrink-0" />
+                  <span>3. Tambah Produk Grooming / Ritel (Opsional)</span>
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {products.map((prd) => {
@@ -1352,14 +1376,14 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
                             : 'bg-zinc-900 border-zinc-800'
                         }`}
                       >
-                        <div>
-                          <div className="font-bold text-xs text-zinc-100">{prd.name}</div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-xs text-zinc-100 truncate">{prd.name}</div>
                           <div className="text-[11px] font-mono text-gold-400 font-bold">
                             Rp {Number(prd.selling_price).toLocaleString('id-ID')}
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 shrink-0">
                           <button
                             type="button"
                             onClick={() => updateProductQty(prd.id, -1)}
@@ -1388,7 +1412,8 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
             {/* Langkah 4: Pilih Kapster */}
             <div className="space-y-2">
               <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-gold-400" /> 4. Pilih Barber / Kapster
+                <User className="w-3.5 h-3.5 text-gold-400 shrink-0" />
+                <span>4. Pilih Barber / Kapster</span>
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {barbers.map((brb) => (
@@ -1413,7 +1438,8 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
             {/* Langkah 5: Pilih Tanggal & Jam */}
             <div className="space-y-2">
               <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-gold-400" /> 5. Tanggal & Jam Kunjungan
+                <Calendar className="w-3.5 h-3.5 text-gold-400 shrink-0" />
+                <span>5. Tanggal & Jam Kunjungan</span>
               </label>
               <input
                 type="date"
@@ -1475,7 +1501,8 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
             {customerUser && (
               <div className="space-y-2">
                 <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-gold-400" /> 6. Data Kontak & Barber Notes
+                  <Sparkles className="w-3.5 h-3.5 text-gold-400 shrink-0" />
+                  <span>6. Data Kontak & Barber Notes</span>
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div className="relative">
@@ -1515,9 +1542,9 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
             {/* Ringkasan Keranjang Booking & Tombol Submit */}
             <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-2xl space-y-3">
               <div className="space-y-1 text-xs font-mono">
-                <div className="flex justify-between text-zinc-400">
-                  <span className="font-sans">Lokasi Cabang</span>
-                  <span className="text-zinc-200">{selectedOutlet.name}</span>
+                <div className="flex justify-between gap-2 text-zinc-400">
+                  <span className="font-sans shrink-0">Lokasi Cabang</span>
+                  <span className="text-zinc-200 text-right truncate">{selectedOutlet.name}</span>
                 </div>
                 <div className="flex justify-between text-zinc-400">
                   <span className="font-sans">Total Layanan ({selectedServicesList.length} item)</span>
@@ -1549,7 +1576,7 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
                     <Lock className="w-4 h-4" /> LOGIN / DAFTAR AKUN UNTUK MEMESAN
                   </>
                 ) : (
-                  'LANJUT KE PEMBAYARAN & VOUCHER (KUNCI SLOT 10 MENIT)'
+                  'LANJUT KE PEMBAYARAN & VOUCHER (KUNCI 10 MENIT)'
                 )}
               </button>
             </div>
@@ -1615,11 +1642,12 @@ export default function PublicBooking({ customerUser, onLogout, onOpenAuth }: Pr
         </div>
       )}
 
-      {/* Floating Button CS WhatsApp di Pojok Kanan Bawah */}
+      {/* Floating Button CS WhatsApp (Ukuran Kompak di Mobile) */}
       <button
         type="button"
         onClick={() => setShowCSModal(true)}
-        className="fixed bottom-5 right-5 z-30 p-3.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-full shadow-xl shadow-emerald-500/20 flex items-center gap-2 font-black text-xs transition-all active:scale-95"
+        style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        className="fixed right-4 z-30 p-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-full shadow-xl shadow-emerald-500/20 flex items-center gap-2 font-black text-xs transition-all active:scale-95"
       >
         <MessageCircle className="w-5 h-5" />
         <span className="hidden sm:inline">Butuh Bantuan CS?</span>
