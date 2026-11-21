@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { 
-  Scissors, Calendar, Coins, Clock, 
+  Scissors, Calendar, Coins, Clock, User,
   CheckCircle2, RefreshCw, LogOut, Award, FileText 
 } from 'lucide-react';
 
@@ -13,7 +13,7 @@ interface Props {
 
 export default function BarberPortal({ currentUser, onLogout }: Props) {
   const [data, setData] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'QUEUE' | 'COMMISSIONS'>('QUEUE');
+  const [activeTab, setActiveTab] = useState<'QUEUE' | 'COMMISSIONS' | 'SCHEDULE'>('QUEUE');
   const [isLoading, setIsLoading] = useState(true);
 
   // Ambil ID kapster dari akun login atau gunakan ID Andi sebagai acuan default
@@ -55,7 +55,10 @@ export default function BarberPortal({ currentUser, onLogout }: Props) {
   return (
     <div className="flex-1 bg-zinc-950 text-zinc-100 flex flex-col h-[100dvh] overflow-hidden select-none">
       {/* Header Khusus Kapster */}
-      <header className="p-4 border-b border-zinc-800 bg-zinc-900/90 flex justify-between items-center shrink-0">
+      <header
+        className="px-4 pb-3 border-b border-zinc-800 bg-zinc-900/90 flex justify-between items-center shrink-0"
+        style={{ paddingTop: 'max(0.85rem, env(safe-area-inset-top))' }}
+      >
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-gold-500/10 border border-gold-500/30 flex items-center justify-center text-gold-400 font-bold">
             <Scissors className="w-5 h-5" />
@@ -114,30 +117,6 @@ export default function BarberPortal({ currentUser, onLogout }: Props) {
             </div>
             <p className="text-[9px] text-zinc-500">Total komisi diterima</p>
           </div>
-        </div>
-
-        {/* Tab Switcher */}
-        <div className="flex bg-zinc-900 p-1 rounded-xl border border-zinc-800 gap-1">
-          <button
-            onClick={() => setActiveTab('QUEUE')}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-              activeTab === 'QUEUE'
-                ? 'bg-gold-500 text-zinc-950 shadow-md shadow-gold-500/20'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <Calendar className="w-3.5 h-3.5" /> Antrean Klien ({queue.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('COMMISSIONS')}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-              activeTab === 'COMMISSIONS'
-                ? 'bg-gold-500 text-zinc-950 shadow-md shadow-gold-500/20'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <Award className="w-3.5 h-3.5" /> Riwayat Bagi Hasil
-          </button>
         </div>
 
         {/* Tampilan Tab Antrean Klien */}
@@ -233,7 +212,76 @@ export default function BarberPortal({ currentUser, onLogout }: Props) {
             )}
           </div>
         )}
+
+        {/* Tampilan Tab Jadwal & Profil Kapster */}
+        {activeTab === 'SCHEDULE' && (
+          <div className="space-y-3">
+            <div className="p-4 bg-zinc-900/80 border border-zinc-800 rounded-2xl space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-gold-500/15 border border-gold-500/30 flex items-center justify-center text-gold-400 font-black">
+                  {barber.nickname?.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-zinc-100">{barber.nickname}</h3>
+                  <p className="text-[11px] text-gold-400 font-mono uppercase">Level: {barber.level}</p>
+                </div>
+              </div>
+              <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-xs space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-zinc-400">Jam Operasional Default</span>
+                  <span className="font-mono text-zinc-200 font-bold">09:00 - 21:00 WITA</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-400">Status Roster & Cuti</span>
+                  <span className="font-mono text-emerald-400 font-bold">Dikelola oleh Owner</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onLogout}
+                className="w-full py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
+              >
+                <LogOut className="w-3.5 h-3.5" /> Keluar dari Akun Kapster
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Bottom Navigation Bar Kapster (3 Tab: Antrean, Komisi, Jadwal) */}
+      <nav
+        className="border-t border-zinc-800 bg-zinc-900/95 backdrop-blur-md px-2 pt-2 grid grid-cols-3 shrink-0"
+        style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+      >
+        {[
+          { id: 'QUEUE', label: 'Antrean', icon: Calendar, badge: queue.length },
+          { id: 'COMMISSIONS', label: 'Komisi', icon: Coins, badge: 0 },
+          { id: 'SCHEDULE', label: 'Jadwal', icon: User, badge: 0 },
+        ].map((tab) => {
+          const IconComp = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id as 'QUEUE' | 'COMMISSIONS' | 'SCHEDULE')}
+              className="flex flex-col items-center gap-1 py-1 active:scale-95 transition-all"
+            >
+              <div className={`relative px-4 py-1 rounded-2xl ${isActive ? 'bg-gold-500/15 text-gold-400' : 'text-zinc-500'}`}>
+                <IconComp className="w-5 h-5" />
+                {tab.badge > 0 && (
+                  <span className="absolute -top-0.5 right-1 min-w-[16px] h-4 px-1 rounded-full bg-gold-500 text-zinc-950 font-mono font-black text-[9px] flex items-center justify-center">
+                    {tab.badge}
+                  </span>
+                )}
+              </div>
+              <span className={`text-[10px] font-bold ${isActive ? 'text-gold-400' : 'text-zinc-500'}`}>
+                {tab.label}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }

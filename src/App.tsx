@@ -80,6 +80,10 @@ export default function App() {
   // Tab Khusus Tampilan Layar HP (Mobile Tab Switcher)
   const [mobilePosTab, setMobilePosTab] = useState<'CATALOG' | 'CART' | 'PAYMENT'>('CATALOG');
 
+  // Tab Bottom Bar Owner (Dashboard, Tim, Katalog, Laporan) & Drawer Shift Kasir
+  const [ownerBottomTab, setOwnerBottomTab] = useState<'DASHBOARD' | 'TEAM' | 'CATALOG' | 'REPORT'>('DASHBOARD');
+  const [showKasirShiftSheet, setShowKasirShiftSheet] = useState(false);
+
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
@@ -518,12 +522,16 @@ export default function App() {
   return (
     <div className="flex flex-col h-[100dvh] w-screen overflow-hidden bg-zinc-950 text-zinc-100 font-sans select-none">
       {/* ================= TOP NAVIGATION BAR (RESPONSIF MOBILE & DESKTOP) ================= */}
-      <header className="min-h-12 border-b border-zinc-800 bg-zinc-900/90 px-3 py-2 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 select-none shrink-0">
-        <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap scrollbar-none pb-1 sm:pb-0">
+      <header
+        className="min-h-12 border-b border-zinc-800 bg-zinc-900/90 px-3 pb-2 flex justify-between items-center gap-2 select-none shrink-0"
+        style={{ paddingTop: 'max(0.6rem, env(safe-area-inset-top))' }}
+      >
+        <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap scrollbar-none">
           <span className="font-black tracking-wider text-gold-400 text-xs sm:text-sm flex items-center gap-1 shrink-0 mr-1">
             💈 BARBERSHOP<span className="text-zinc-400">OS</span>
           </span>
-          <span className="text-zinc-700 hidden sm:inline">|</span>
+          <div className="hidden lg:flex items-center gap-1.5">
+            <span className="text-zinc-700">|</span>
 
           <button
             onClick={() => setCurrentView('POS')}
@@ -613,10 +621,11 @@ export default function App() {
           >
             <Wallet className="w-3.5 h-3.5 text-gold-400" /> Beban
           </button>
+          </div>
         </div>
 
-        <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center justify-end gap-2 shrink-0">
+          <div className="hidden lg:flex items-center gap-1.5">
             <button
               onClick={() => { setShiftSummaryResult(null); setShowCloseShiftModal(true); }}
               className="px-2 py-1 rounded-lg text-[11px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
@@ -648,13 +657,132 @@ export default function App() {
       </header>
 
       {/* ================= CONTENT ROUTER ================= */}
-      {currentView === 'DASHBOARD' && currentUser.role === 'OWNER' ? (
+      {currentUser.role === 'OWNER' && currentView === 'DASHBOARD' && ownerBottomTab === 'TEAM' ? (
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 max-w-xl mx-auto w-full">
+          <h2 className="text-sm font-black text-gold-400 uppercase tracking-wider">Manajemen Tim & Kapster</h2>
+          <button
+            onClick={() => setShowRosterModal(true)}
+            className="w-full p-4 bg-zinc-900 border border-zinc-800 hover:border-gold-500/50 rounded-2xl flex items-center gap-3 text-left"
+          >
+            <div className="p-2.5 rounded-xl bg-gold-500/15 text-gold-400"><Clock className="w-5 h-5" /></div>
+            <div>
+              <div className="text-sm font-bold text-zinc-100">Jadwal Libur & Cuti Kapster (Roster)</div>
+              <div className="text-xs text-zinc-400">Atur libur rutin mingguan dan cuti khusus kapster</div>
+            </div>
+          </button>
+          <button
+            onClick={() => setShowCommissionModal(true)}
+            className="w-full p-4 bg-zinc-900 border border-zinc-800 hover:border-gold-500/50 rounded-2xl flex items-center gap-3 text-left"
+          >
+            <div className="p-2.5 rounded-xl bg-emerald-500/15 text-emerald-400"><Coins className="w-5 h-5" /></div>
+            <div>
+              <div className="text-sm font-bold text-zinc-100">Pencairan Komisi Kapster (Payroll)</div>
+              <div className="text-xs text-zinc-400">Lihat akumulasi komisi pending dan cairkan bagi hasil</div>
+            </div>
+          </button>
+        </div>
+      ) : currentUser.role === 'OWNER' && currentView === 'DASHBOARD' && ownerBottomTab === 'CATALOG' ? (
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 max-w-xl mx-auto w-full">
+          <h2 className="text-sm font-black text-gold-400 uppercase tracking-wider">Katalog, Voucher & Kasir</h2>
+          <button
+            onClick={() => setShowMasterModal(true)}
+            className="w-full p-4 bg-zinc-900 border border-zinc-800 hover:border-gold-500/50 rounded-2xl flex items-center gap-3 text-left"
+          >
+            <div className="p-2.5 rounded-xl bg-gold-500/15 text-gold-400"><Settings className="w-5 h-5" /></div>
+            <div>
+              <div className="text-sm font-bold text-zinc-100">Master Data & Promo Voucher</div>
+              <div className="text-xs text-zinc-400">Kelola harga layanan, produk, HPP, kapster, & status voucher</div>
+            </div>
+          </button>
+          <button
+            onClick={() => setShowRestockModal(true)}
+            className="w-full p-4 bg-zinc-900 border border-zinc-800 hover:border-gold-500/50 rounded-2xl flex items-center gap-3 text-left"
+          >
+            <div className="p-2.5 rounded-xl bg-blue-500/15 text-blue-400"><PackagePlus className="w-5 h-5" /></div>
+            <div>
+              <div className="text-sm font-bold text-zinc-100">Restock Inventori Produk</div>
+              <div className="text-xs text-zinc-400">Tambah stok fisik produk grooming di gudang cabang</div>
+            </div>
+          </button>
+          <button
+            onClick={() => setCurrentView('POS')}
+            className="w-full p-4 bg-zinc-900 border border-zinc-800 hover:border-gold-500/50 rounded-2xl flex items-center gap-3 text-left"
+          >
+            <div className="p-2.5 rounded-xl bg-amber-500/15 text-amber-400"><Scissors className="w-5 h-5" /></div>
+            <div>
+              <div className="text-sm font-bold text-zinc-100">Buka Layar Kasir POS</div>
+              <div className="text-xs text-zinc-400">Masuk ke antarmuka transaksi kasir secara langsung</div>
+            </div>
+          </button>
+        </div>
+      ) : currentUser.role === 'OWNER' && currentView === 'DASHBOARD' && ownerBottomTab === 'REPORT' ? (
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 max-w-xl mx-auto w-full">
+          <h2 className="text-sm font-black text-gold-400 uppercase tracking-wider">Laporan & Operasional</h2>
+          <button
+            onClick={() => setShowExportModal(true)}
+            className="w-full p-4 bg-zinc-900 border border-zinc-800 hover:border-emerald-500/50 rounded-2xl flex items-center gap-3 text-left"
+          >
+            <div className="p-2.5 rounded-xl bg-emerald-500/15 text-emerald-400"><FileSpreadsheet className="w-5 h-5" /></div>
+            <div>
+              <div className="text-sm font-bold text-zinc-100">Ekspor Laporan Excel (CSV)</div>
+              <div className="text-xs text-zinc-400">Unduh rekap penjualan, beban, dan komisi berdasarkan tanggal</div>
+            </div>
+          </button>
+          <button
+            onClick={() => { fetchRecentTransactions(); setShowHistoryModal(true); }}
+            className="w-full p-4 bg-zinc-900 border border-zinc-800 hover:border-gold-500/50 rounded-2xl flex items-center gap-3 text-left"
+          >
+            <div className="p-2.5 rounded-xl bg-gold-500/15 text-gold-400"><Receipt className="w-5 h-5" /></div>
+            <div>
+              <div className="text-sm font-bold text-zinc-100">Riwayat Penjualan & Void</div>
+              <div className="text-xs text-zinc-400">Periksa nota transaksi, kirim ulang WA, atau batalkan nota</div>
+            </div>
+          </button>
+          <button
+            onClick={() => setShowExpenseModal(true)}
+            className="w-full p-4 bg-zinc-900 border border-zinc-800 hover:border-gold-500/50 rounded-2xl flex items-center gap-3 text-left"
+          >
+            <div className="p-2.5 rounded-xl bg-red-500/15 text-red-400"><Wallet className="w-5 h-5" /></div>
+            <div>
+              <div className="text-sm font-bold text-zinc-100">Beban Operasional Harian</div>
+              <div className="text-xs text-zinc-400">Catat pengeluaran listrik, laundry handuk, silet, & galon</div>
+            </div>
+          </button>
+        </div>
+      ) : currentView === 'DASHBOARD' && currentUser.role === 'OWNER' ? (
         <Dashboard />
       ) : currentView === 'BOOKING' ? (
         <PublicBooking onBack={() => setCurrentView('POS')} />
       ) : (
         /* KASIR POS CONTAINER */
         <div className="flex flex-col lg:flex-row flex-1 overflow-hidden relative">
+          {/* Sub-Tab 3 Langkah Kasir POS Khusus Layar HP (agar Bottom Nav tetap 4 menu utama) */}
+          <div className="lg:hidden grid grid-cols-3 gap-1 p-2 bg-zinc-950 border-b border-zinc-800 shrink-0">
+            <button
+              onClick={() => setMobilePosTab('CATALOG')}
+              className={`py-1.5 rounded-lg text-[11px] font-bold ${
+                mobilePosTab === 'CATALOG' ? 'bg-gold-500 text-zinc-950' : 'bg-zinc-900 text-zinc-400'
+              }`}
+            >
+              1. Katalog
+            </button>
+            <button
+              onClick={() => setMobilePosTab('CART')}
+              className={`py-1.5 rounded-lg text-[11px] font-bold ${
+                mobilePosTab === 'CART' ? 'bg-gold-500 text-zinc-950' : 'bg-zinc-900 text-zinc-400'
+              }`}
+            >
+              2. Tiket ({cart.reduce((s, i) => s + i.quantity, 0)})
+            </button>
+            <button
+              onClick={() => setMobilePosTab('PAYMENT')}
+              className={`py-1.5 rounded-lg text-[11px] font-bold ${
+                mobilePosTab === 'PAYMENT' ? 'bg-gold-500 text-zinc-950' : 'bg-zinc-900 text-zinc-400'
+              }`}
+            >
+              3. Bayar
+            </button>
+          </div>
 
           {/* KOLOM 1: KATALOG (RESPONSIF MOBILE/DESKTOP) */}
           <div className={`w-full lg:w-[40%] flex-col border-r border-zinc-800/80 bg-zinc-900/40 flex-1 overflow-hidden ${
@@ -1064,44 +1192,144 @@ export default function App() {
             </button>
           </div>
 
-          {/* ================= BOTTOM BAR KHUSUS MOBILE (< lg) ================= */}
-          <div className="lg:hidden border-t border-zinc-800 bg-zinc-950 px-2 py-2 flex justify-around items-center z-30 shrink-0">
-            <button
-              onClick={() => setMobilePosTab('CATALOG')}
-              className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-[10px] font-bold rounded-xl transition-all ${
-                mobilePosTab === 'CATALOG' ? 'text-gold-400 bg-gold-500/10' : 'text-zinc-400'
-              }`}
-            >
-              <Scissors className="w-4 h-4" />
-              <span>1. Katalog</span>
-            </button>
-
-            <button
-              onClick={() => setMobilePosTab('CART')}
-              className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-[10px] font-bold rounded-xl transition-all relative ${
-                mobilePosTab === 'CART' ? 'text-gold-400 bg-gold-500/10' : 'text-zinc-400'
-              }`}
-            >
-              <Receipt className="w-4 h-4" />
-              <span>2. Tiket</span>
-              {cart.length > 0 && (
-                <span className="absolute top-0 right-4 bg-gold-500 text-zinc-950 text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
-                  {cart.reduce((s, i) => s + i.quantity, 0)}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => setMobilePosTab('PAYMENT')}
-              className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-[10px] font-bold rounded-xl transition-all ${
-                mobilePosTab === 'PAYMENT' ? 'text-gold-400 bg-gold-500/10' : 'text-zinc-400'
-              }`}
-            >
-              <CreditCard className="w-4 h-4" />
-              <span>3. Bayar</span>
-            </button>
           </div>
+      )}
 
+      {/* ================= BOTTOM NAVIGATION BAR KHUSUS HP (< lg) ================= */}
+      <nav
+        className="lg:hidden border-t border-zinc-800 bg-zinc-900/95 backdrop-blur-md px-2 pt-2 grid grid-cols-4 shrink-0 z-30"
+        style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+      >
+        {currentUser.role === 'OWNER' ? (
+          <>
+            {[
+              { id: 'DASHBOARD', label: 'Dashboard', icon: LayoutDashboard },
+              { id: 'TEAM', label: 'Tim', icon: Clock },
+              { id: 'CATALOG', label: 'Katalog', icon: Settings },
+              { id: 'REPORT', label: 'Laporan', icon: FileSpreadsheet },
+            ].map((tab) => {
+              const IconComp = tab.icon;
+              const isActive = currentView === 'DASHBOARD' && ownerBottomTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setCurrentView('DASHBOARD');
+                    setOwnerBottomTab(tab.id as 'DASHBOARD' | 'TEAM' | 'CATALOG' | 'REPORT');
+                  }}
+                  className="flex flex-col items-center gap-1 py-1 active:scale-95"
+                >
+                  <div className={`px-3 py-1 rounded-xl ${isActive ? 'bg-gold-500/15 text-gold-400' : 'text-zinc-500'}`}>
+                    <IconComp className="w-5 h-5" />
+                  </div>
+                  <span className={`text-[10px] font-bold ${isActive ? 'text-gold-400' : 'text-zinc-500'}`}>
+                    {tab.label}
+                  </span>
+                </button>
+              );
+            })}
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => { setCurrentView('POS'); setShowKasirShiftSheet(false); }}
+              className="flex flex-col items-center gap-1 py-1 active:scale-95"
+            >
+              <div className={`px-3 py-1 rounded-xl ${currentView === 'POS' && !showKasirShiftSheet ? 'bg-gold-500/15 text-gold-400' : 'text-zinc-500'}`}>
+                <Scissors className="w-5 h-5" />
+              </div>
+              <span className={`text-[10px] font-bold ${currentView === 'POS' && !showKasirShiftSheet ? 'text-gold-400' : 'text-zinc-500'}`}>
+                Kasir
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { fetchActiveBookings(); setShowQueueModal(true); }}
+              className="flex flex-col items-center gap-1 py-1 active:scale-95"
+            >
+              <div className="px-3 py-1 rounded-xl text-zinc-400">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <span className="text-[10px] font-bold text-zinc-400">Antrean</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { fetchRecentTransactions(); setShowHistoryModal(true); }}
+              className="flex flex-col items-center gap-1 py-1 active:scale-95"
+            >
+              <div className="px-3 py-1 rounded-xl text-zinc-400">
+                <Receipt className="w-5 h-5" />
+              </div>
+              <span className="text-[10px] font-bold text-zinc-400">Riwayat</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowKasirShiftSheet(true)}
+              className="flex flex-col items-center gap-1 py-1 active:scale-95"
+            >
+              <div className={`px-3 py-1 rounded-xl ${showKasirShiftSheet ? 'bg-gold-500/15 text-gold-400' : 'text-zinc-400'}`}>
+                <Wallet className="w-5 h-5" />
+              </div>
+              <span className={`text-[10px] font-bold ${showKasirShiftSheet ? 'text-gold-400' : 'text-zinc-400'}`}>
+                Shift
+              </span>
+            </button>
+          </>
+        )}
+      </nav>
+
+      {/* ================= BOTTOM SHEET OPERASIONAL & SHIFT KASIR ================= */}
+      {showKasirShiftSheet && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end justify-center p-3">
+          <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-3xl p-5 space-y-3">
+            <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+              <h3 className="text-sm font-black text-gold-400">Menu Shift & Operasional Kasir</h3>
+              <button onClick={() => setShowKasirShiftSheet(false)} className="text-xs text-zinc-400">✕ Tutup</button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs font-bold">
+              <button
+                onClick={() => { setShowKasirShiftSheet(false); handleOpenShift(); }}
+                className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl"
+              >
+                Buka Shift
+              </button>
+              <button
+                onClick={() => { setShowKasirShiftSheet(false); setShiftSummaryResult(null); setShowCloseShiftModal(true); }}
+                className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl"
+              >
+                Closing Shift
+              </button>
+              <button
+                onClick={() => { setShowKasirShiftSheet(false); setShowRestockModal(true); }}
+                className="p-3 bg-zinc-950 border border-zinc-800 text-zinc-200 rounded-xl flex items-center justify-center gap-1.5"
+              >
+                <PackagePlus className="w-4 h-4 text-gold-400" /> Restock
+              </button>
+              <button
+                onClick={() => { setShowKasirShiftSheet(false); setShowExpenseModal(true); }}
+                className="p-3 bg-zinc-950 border border-zinc-800 text-zinc-200 rounded-xl flex items-center justify-center gap-1.5"
+              >
+                <Wallet className="w-4 h-4 text-gold-400" /> Catat Beban
+              </button>
+              <button
+                onClick={() => { setShowKasirShiftSheet(false); setShowCustomerModal(true); }}
+                className="p-3 bg-zinc-950 border border-zinc-800 text-zinc-200 rounded-xl flex items-center justify-center gap-1.5"
+              >
+                <User className="w-4 h-4 text-gold-400" /> CRM Member
+              </button>
+              <button
+                onClick={() => { setShowKasirShiftSheet(false); setShowCommissionModal(true); }}
+                className="p-3 bg-zinc-950 border border-zinc-800 text-zinc-200 rounded-xl flex items-center justify-center gap-1.5"
+              >
+                <Coins className="w-4 h-4 text-gold-400" /> Cek Komisi
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

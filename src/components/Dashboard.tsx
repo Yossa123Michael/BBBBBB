@@ -152,7 +152,7 @@ export default function Dashboard() {
 
   // 3. Tampilan Utama Dashboard (Responsif Mobile & Desktop)
   return (
-    <div className="flex-1 overflow-y-auto bg-zinc-950 p-4 sm:p-6 space-y-5 select-none">
+    <div className="flex-1 overflow-y-auto bg-zinc-950 p-4 pb-10 sm:p-6 space-y-5 select-none">
       {/* Header Dashboard & Export Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-800 pb-4">
         <div>
