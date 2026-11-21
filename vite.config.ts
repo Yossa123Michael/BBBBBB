@@ -6,50 +6,34 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
-      devOptions: {
-        enabled: false,
+  registerType: 'autoUpdate',
+  includeAssets: ['apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
+  manifest: {
+    name: 'Barbershop OS',
+    short_name: 'Barbershop OS',
+    theme_color: '#09090b',
+    background_color: '#09090b',
+    display: 'standalone',
+    icons: [
+      {
+        src: '/pwa-192x192.png',
+        sizes: '192x192',
+        type: 'image/png',
       },
-      includeAssets: ['icon.svg', 'icon2.svg', 'icon-192.png', 'icon-512.png'],
-      manifest: {
-        id: '/',
-        start_url: '/',
-        scope: '/',
-        name: 'Barbershop OS - POS & Manajemen',
-        short_name: 'BarbershopOS',
-        description: 'Aplikasi Kasir POS dan Manajemen Operasional Barbershop Modern',
-        theme_color: '#09090b',
-        background_color: '#09090b',
-        display: 'standalone',
-        orientation: 'any',
-        icons: [
-          {
-            src: '/icon2.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'any',
-          },
-          {
-            src: '/icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any',
-          },
-          {
-            src: '/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any',
-          },
-          {
-            src: '/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
-        ],
+      {
+        src: '/pwa-512x512.png',
+        sizes: '512x512',
+        type: 'image/png',
       },
-    }),
+      {
+        src: '/pwa-512x512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'any maskable',
+      },
+    ],
+  },
+}),
   ],
   server: {
     host: true,
